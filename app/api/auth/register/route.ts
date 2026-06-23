@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '../../../../lib/supabaseClient';
+import { getSupabaseAdmin, supabase } from '../../../../lib/supabaseClient';
 import { createCustomer } from '../../../../lib/supabaseService';
 import { isValidEmail } from '../../../../lib/validators';
 
@@ -56,6 +56,27 @@ export async function POST(request: NextRequest) {
     if (!customer) {
       console.warn('Customer record created in auth but failed to create customer profile');
       // Don't fail here - auth user was created successfully
+    }
+
+    try {
+      const supabaseAdmin = getSupabaseAdmin();
+      if (supabaseAdmin) {
+        await supabaseAdmin.from('notifications').insert({
+          type: 'registered_user',
+          title: 'New registered user',
+          message: `${name || normalizedEmail.split('@')[0]} registered with ${normalizedEmail}.`,
+          recipient_type: 'admin',
+          recipient_email: null,
+          action_url: '/admin/customers',
+          metadata: {
+            user_id: authData.user.id,
+            customer_email: normalizedEmail,
+            customer_name: name || normalizedEmail.split('@')[0],
+          },
+        });
+      }
+    } catch (notificationError) {
+      console.error('Failed to create admin notification for registration:', notificationError);
     }
 
     return NextResponse.json({

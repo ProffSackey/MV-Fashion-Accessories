@@ -6,7 +6,8 @@ export const dynamic = 'force-dynamic';
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabaseClient";
-import { ArrowLeftIcon, EnvelopeIcon, PhoneIcon, MapPinIcon, StarIcon } from "@heroicons/react/24/outline";
+import { USER_SIGNED_OUT_EVENT } from "../../lib/userSession";
+import { EnvelopeIcon, PhoneIcon, MapPinIcon, StarIcon } from "@heroicons/react/24/outline";
 import UserAccountShell from "../components/UserAccountShell";
 
 interface Order {
@@ -80,85 +81,93 @@ export default function UserPage() {
   };
 
   useEffect(() => {
+    let active = true;
+    let loadId = 0;
+
+    const clearAndRedirect = () => {
+      if (!active) return;
+      loadId += 1;
+      setUser(null);
+      setUserProfile(null);
+      setShowReviewModal(false);
+      setUnreviewedOrder(null);
+      setLoading(false);
+      router.replace('/login');
+    };
+
+    const loadProfile = async (sessionUser: User | null) => {
+      const currentLoad = ++loadId;
+      if (!sessionUser) {
+        clearAndRedirect();
+        return;
+      }
+
+      setLoading(true);
+      setUser(sessionUser);
+      const metadata = sessionUser.user_metadata || {};
+      const builtProfile: UserProfile = {
+        id: sessionUser.id,
+        email: sessionUser.email || '',
+        fullName: metadata.full_name || sessionUser.email || '',
+        phone: metadata.phone || '',
+        country: metadata.address?.country || '',
+        address: metadata.address?.street || '',
+        avatarUrl: metadata.avatar_url || metadata.picture || '',
+        joinedDate: sessionUser.created_at ? new Date(sessionUser.created_at).toLocaleDateString() : '',
+        orders: [],
+      };
+
+      try {
+        const res = await fetch(`/api/customer-orders?email=${encodeURIComponent(builtProfile.email)}`);
+        const ordersData: RawOrder[] = res.ok ? await res.json() : [];
+        if (Array.isArray(ordersData) && ordersData.length > 0) {
+          builtProfile.orders = ordersData.map((o) => ({
+            id: o.order_number || o.id || '',
+            date: o.created_at ? new Date(o.created_at).toLocaleDateString() : '',
+            amount: `GHS ${(o.total_amount || 0).toFixed(2)}`,
+            status: normalizeOrderStatus(o.status),
+            items: Array.isArray(o.items) ? o.items.length : 0,
+          }));
+        }
+      } catch (err) {
+        console.error('Error fetching orders:', err);
+      }
+
+      if (!active || currentLoad !== loadId) return;
+      setUserProfile(builtProfile);
+      setLoading(false);
+      window.setTimeout(() => {
+        if (active && currentLoad === loadId) {
+          checkForUnreviewedOrders(builtProfile.orders || []);
+        }
+      }, 1000);
+    };
+
     supabase.auth
       .getSession()
-      .then(({ data }) => {
-        if (!data.session) {
-          router.replace('/login');
-        } else {
-          setUser(data.session.user);
-          // populate both the read-only profile shown on the page and the editable form
-          const metadata = data.session.user.user_metadata || {};
-
-          // profile form lives on the dedicated settings page now
-
-          // build a simplified view model for the profile section
-          const builtProfile: UserProfile = {
-            id: data.session.user.id,
-            email: data.session.user.email || '',
-            fullName: metadata.full_name || data.session.user.email || '',
-            phone: metadata.phone || '',
-            country: metadata.address?.country || '',
-            address: metadata.address?.street || '',
-            avatarUrl: metadata.avatar_url || metadata.picture || '',
-            joinedDate: data.session.user.created_at
-              ? new Date(data.session.user.created_at).toLocaleDateString()
-              : '',
-            orders: [],
-          };
-
-          console.log('=== USER SESSION INFO ===');
-          console.log('User Email from session:', builtProfile.email);
-          console.log('User ID:', builtProfile.id);
-          console.log('Full Name:', builtProfile.fullName);
-
-          // attempt to fetch recent orders for display
-          console.log('Fetching orders for email:', builtProfile.email);
-          fetch(`/api/customer-orders?email=${encodeURIComponent(builtProfile.email)}`)
-            .then((res) => {
-              console.log('Orders API response status:', res.status);
-              if (!res.ok) {
-                console.error('Failed to fetch orders:', res.status);
-                return [];
-              }
-              return res.json();
-            })
-            .then((ordersData: RawOrder[]) => {
-              console.log('Orders API response data:', ordersData);
-              if (Array.isArray(ordersData) && ordersData.length > 0) {
-                console.log(`Mapping ${ordersData.length} orders`);
-                builtProfile.orders = ordersData.map((o) => ({
-                  id: o.order_number || o.id || '',
-                  date: o.created_at ? new Date(o.created_at).toLocaleDateString() : '',
-                  amount: `GHS ${(o.total_amount || 0).toFixed(2)}`,
-                  status: normalizeOrderStatus(o.status),
-                  items: Array.isArray(o.items) ? o.items.length : 0,
-                }));
-                console.log('Mapped orders:', builtProfile.orders);
-              } else {
-                console.log('No orders returned or ordersData is not an array');
-              }
-            })
-            .catch((err) => {
-              console.error('Error fetching orders:', err);
-              // ignore failure, profile will show empty orders
-            })
-            .finally(() => {
-              console.log('Setting profile with orders:', builtProfile.orders);
-              setUserProfile(builtProfile);
-              setLoading(false);
-
-              // Check for unreviewed delivered orders after loading
-              setTimeout(() => {
-                checkForUnreviewedOrders(builtProfile.orders || []);
-              }, 1000); // Small delay to ensure page is fully loaded
-            });
-        }
-      })
+      .then(({ data }) => loadProfile(data.session?.user || null))
       .catch((err) => {
         console.error(err);
-        router.replace('/login');
+        clearAndRedirect();
       });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        clearAndRedirect();
+        return;
+      }
+      loadProfile(session.user);
+    });
+
+    window.addEventListener(USER_SIGNED_OUT_EVENT, clearAndRedirect);
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+      window.removeEventListener(USER_SIGNED_OUT_EVENT, clearAndRedirect);
+    };
   }, [router]);
 
   if (loading || !user || !userProfile) {
@@ -201,15 +210,6 @@ export default function UserPage() {
       title="My Profile"
       subtitle="Review your account details and recent activity."
     >
-            {/* Back Button */}
-            <button
-              onClick={() => router.back()}
-              className="flex items-center gap-2 text-yellow-600 hover:text-yellow-800 transition mb-3 sm:mb-4 font-medium text-sm"
-            >
-              <ArrowLeftIcon className="h-4 w-4 flex-shrink-0" />
-              <span className="truncate">Back</span>
-            </button>
-
             {/* Profile Header */}
             <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 shadow-sm rounded-lg sm:rounded-xl p-3 sm:p-4 md:p-6 mb-3 sm:mb-4 border border-yellow-200">
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">

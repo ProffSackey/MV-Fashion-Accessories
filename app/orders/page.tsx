@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bars3Icon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, Bars3Icon } from "@heroicons/react/24/outline";
 import { formatPrice } from "@/lib/promotionUtils";
 import { parseCurrency } from "@/lib/currency";
 import { useUserAuth } from "../../lib/useUserAuth";
@@ -104,6 +104,14 @@ export default function OrdersPage() {
 
         <main className="w-full px-4 py-5 sm:px-6 md:px-8 lg:px-10">
           <div className="mx-auto w-full max-w-5xl">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="mb-4 inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-yellow-300 hover:text-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+              Back
+            </button>
             <header className="mb-5 hidden md:block">
               <p className="text-sm font-semibold text-yellow-700">Account</p>
               <h1 className="mt-1 text-2xl font-bold text-gray-950">My Orders</h1>

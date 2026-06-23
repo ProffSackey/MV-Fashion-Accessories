@@ -9,7 +9,8 @@ import {
   UserCircleIcon, 
   ArrowRightOnRectangleIcon,
   Cog6ToothIcon,
-  BellIcon
+  BellIcon,
+  EnvelopeIcon
 } from '@heroicons/react/24/outline';
 
 interface AdminNavbarProps {
@@ -20,6 +21,7 @@ export default function AdminNavbar({ onMenuToggle }: AdminNavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [adminProfile, setAdminProfile] = useState({
     name: 'Admin',
     email: '',
@@ -30,7 +32,7 @@ export default function AdminNavbar({ onMenuToggle }: AdminNavbarProps) {
   useEffect(() => {
     const loadCount = async () => {
       try {
-        const res = await fetch('/api/admin/notifications');
+        const res = await fetch('/api/admin/notifications', { cache: 'no-store' });
         if (!res.ok) return;
         const data: any[] = await res.json();
         const unread = data.filter((n) => !n.is_read).length;
@@ -39,7 +41,38 @@ export default function AdminNavbar({ onMenuToggle }: AdminNavbarProps) {
         console.error('Failed to load notification count', err);
       }
     };
+
     loadCount();
+    const interval = window.setInterval(loadCount, 30000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const loadMessageCount = async () => {
+      if (!navigator.onLine) {
+        setUnreadMessageCount(0);
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/admin/messages/unread', {
+          cache: 'no-store',
+          credentials: 'include',
+        });
+        if (!res.ok) {
+          setUnreadMessageCount(0);
+          return;
+        }
+        const data = await res.json();
+        setUnreadMessageCount(Number(data.count) || 0);
+      } catch (err) {
+        setUnreadMessageCount(0);
+      }
+    };
+
+    loadMessageCount();
+    const interval = window.setInterval(loadMessageCount, 30000);
+    return () => window.clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -106,6 +139,17 @@ export default function AdminNavbar({ onMenuToggle }: AdminNavbarProps) {
               {unreadCount > 0 && (
                 <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
                   {unreadCount}
+                </span>
+              )}
+            </Link>
+          </div>
+
+          <div className="relative mr-4">
+            <Link href="/admin/messages" className="p-2 hover:bg-yellow-500 rounded-lg transition relative" aria-label="Messages">
+              <EnvelopeIcon className="h-6 w-6" />
+              {unreadMessageCount > 0 && (
+                <span className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
+                  {unreadMessageCount}
                 </span>
               )}
             </Link>

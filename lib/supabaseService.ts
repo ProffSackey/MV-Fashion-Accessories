@@ -631,7 +631,18 @@ export interface ShippingZone {
  */
 export const calculateShippingFee = async (location: string): Promise<{ fee: number; minDays: number; maxDays: number } | null> => {
   try {
-    const query = location.toUpperCase();
+    const query = location.trim().toUpperCase();
+    const countryAliases: Record<string, string[]> = {
+      GH: ["GHANA"],
+      GHANA: ["GH"],
+      GB: ["UNITED KINGDOM", "UK"],
+      UK: ["GB", "UNITED KINGDOM"],
+      "UNITED KINGDOM": ["GB", "UK"],
+      US: ["UNITED STATES", "USA"],
+      USA: ["US", "UNITED STATES"],
+      "UNITED STATES": ["US", "USA"],
+    };
+    const countryCandidates = Array.from(new Set([query, ...(countryAliases[query] || [])]));
 
     // First, try to find by zone name
     let { data, error } = await supabase
@@ -667,11 +678,11 @@ export const calculateShippingFee = async (location: string): Promise<{ fee: num
       };
     }
 
-    // If not found by region, try by country
+    // If not found by region, try by country. Support both country names and ISO-style codes.
     ({ data, error } = await supabase
       .from('shipping_zones')
       .select('base_fee, per_km_fee, min_delivery_days, max_delivery_days')
-      .eq('country', query)
+      .in('country', countryCandidates)
       .eq('is_active', true)
       .limit(1)
       .single());
@@ -688,7 +699,7 @@ export const calculateShippingFee = async (location: string): Promise<{ fee: num
     ({ data, error } = await supabase
       .from('shipping_zones')
       .select('base_fee, per_km_fee, min_delivery_days, max_delivery_days')
-      .eq('country', query)
+      .in('country', countryCandidates)
       .is('region', null)
       .eq('is_active', true)
       .limit(1)
@@ -989,6 +1000,34 @@ export const getUserCartCount = async (email: string): Promise<number> => {
   }
 };
 
+const fetchCurrentProductStock = async (productId: string, fallback?: number): Promise<number> => {
+  try {
+    if (typeof window !== 'undefined') {
+      const res = await fetch(`/api/admin/products?id=${encodeURIComponent(productId)}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        const product = Array.isArray(data) ? data[0] : data;
+        if (product?.stock_quantity != null) return Number(product.stock_quantity) || 0;
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('products')
+      .select('stock_quantity')
+      .eq('id', productId)
+      .limit(1)
+      .single();
+
+    if (!error && data?.stock_quantity != null) {
+      return Number(data.stock_quantity) || 0;
+    }
+  } catch (error) {
+    console.error('Failed to fetch current product stock:', error);
+  }
+
+  return fallback != null ? Number(fallback) || 0 : 0;
+};
+
 /**
  * Add item to cart (or update quantity if exists)
  */
@@ -999,25 +1038,7 @@ export const addToCart = async (
   knownStock?: number // Optional: client can pass known stock to avoid DB fetch
 ): Promise<CartItem | null> => {
   try {
-    let available = knownStock;
-
-    // Only fetch stock if not provided by client
-    if (available === undefined) {
-      const { data: prodData, error: prodErr } = await supabase
-        .from('products')
-        .select('id, stock_quantity')
-        .eq('id', productId)
-        .limit(1)
-        .single();
-
-      if (prodErr) {
-        console.debug('Failed to fetch product for stock check (will allow add, backend validation applies):', productId);
-        // Don't block the add if we can't fetch - backend will validate
-        available = Number.MAX_SAFE_INTEGER;
-      } else {
-        available = prodData?.stock_quantity != null ? Number(prodData.stock_quantity) : 0;
-      }
-    }
+    const available = await fetchCurrentProductStock(productId, knownStock);
     
     // Check if cart item already exists for this user/product
     const { data: existingData, error: fetchError } = await supabase
@@ -1044,6 +1065,10 @@ export const addToCart = async (
         return null;
       }
       if (newQuantity > available) newQuantity = available;
+      if (newQuantity === currentQty) {
+        console.warn('Cart quantity already matches available stock:', { productId, currentQty, available });
+        return existingData as CartItem;
+      }
       const { data: updated, error: updateError } = await supabase
         .from('cart_items')
         .update({ quantity: newQuantity })
@@ -1180,26 +1205,7 @@ export const updateCartItemQuantity = async (
     }
 
     // Ensure requested quantity does not exceed available stock
-    let available = knownStock;
-    
-    // Only fetch stock if not provided by client
-    if (available === undefined) {
-      try {
-        const { data: prodData, error: prodErr } = await supabase
-          .from('products')
-          .select('id, stock_quantity')
-          .eq('id', productId)
-          .limit(1)
-          .single();
-        if (prodErr) {
-          console.error('Failed to fetch product for stock check (update):', prodErr);
-        }
-        available = prodData?.stock_quantity != null ? Number(prodData.stock_quantity) : 0;
-      } catch (e) {
-        console.error('Error checking stock before update:', e);
-        available = 0;
-      }
-    }
+    const available = await fetchCurrentProductStock(productId, knownStock);
     
     if (available <= 0) {
       // nothing available
@@ -1321,4 +1327,3 @@ export const clearCart = async (email: string): Promise<boolean> => {
     return false;
   }
 };
-

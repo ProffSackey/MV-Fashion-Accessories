@@ -189,26 +189,46 @@ export async function POST(request: NextRequest) {
       // Don't fail the order creation if stock update fails
     }
 
-    // Create an admin notification with order summary and any low-stock alerts
+    // Create admin notifications with order, transaction, and low-stock context.
     try {
-      const notif = {
+      const amount = parseFloat(String(total_amount));
+      const orderNotification = {
         type: 'new_order',
         title: `New order ${orderNumber}`,
-        message: `Order ${orderNumber} placed by ${customer_name} (${customer_email}) — GHS ${parseFloat(String(total_amount)).toFixed(2)}`,
+        message: `Order ${orderNumber} placed by ${customer_name} (${customer_email}) - GHS ${amount.toFixed(2)}`,
         recipient_type: 'admin',
         recipient_email: null,
+        action_url: `/admin/orders/${orderNumber}`,
         metadata: {
           order_number: orderNumber,
           order_id: order?.[0]?.id,
           customer_name,
           customer_email,
-          total_amount: parseFloat(String(total_amount)),
+          total_amount: amount,
           items,
           low_stock_alerts: lowStockAlerts,
         },
       };
+      const transactionNotification = {
+        type: 'new_transaction',
+        title: `New transaction for ${orderNumber}`,
+        message: `Transaction recorded for ${orderNumber}: GHS ${amount.toFixed(2)}.`,
+        recipient_type: 'admin',
+        recipient_email: null,
+        action_url: '/admin/transactions',
+        metadata: {
+          order_number: orderNumber,
+          order_id: order?.[0]?.id,
+          customer_name,
+          customer_email,
+          total_amount: amount,
+          payment_status: 'unpaid',
+        },
+      };
 
-      const { error: notifErr } = await supabaseAdmin.from('notifications').insert([notif]);
+      const { error: notifErr } = await supabaseAdmin
+        .from('notifications')
+        .insert([orderNotification, transactionNotification]);
       if (notifErr) console.error('Failed to create admin notification for new order:', notifErr);
     } catch (e) {
       console.error('Error writing admin notification:', e);

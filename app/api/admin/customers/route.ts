@@ -22,7 +22,41 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(data || []);
+    const customers = data || [];
+    const byEmail = new Map(customers.map((customer: any) => [String(customer.email || '').toLowerCase(), customer]));
+
+    try {
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.listUsers();
+      if (authError) {
+        console.warn('Error fetching auth users for customer merge:', authError);
+      }
+
+      for (const authUser of authData?.users || []) {
+        const email = String(authUser.email || '').toLowerCase();
+        if (!email || byEmail.has(email)) continue;
+
+        const meta = authUser.user_metadata || {};
+        byEmail.set(email, {
+          id: authUser.id,
+          email: authUser.email || '',
+          name: meta.full_name || meta.name || (authUser.email ? authUser.email.split('@')[0] : 'Customer'),
+          phone: meta.phone || '',
+          address: meta.address || {},
+          is_active: true,
+          created_at: authUser.created_at,
+          updated_at: authUser.updated_at,
+          source: 'auth',
+        });
+      }
+    } catch (authMergeError) {
+      console.warn('Could not merge auth users into customers list:', authMergeError);
+    }
+
+    const mergedCustomers = Array.from(byEmail.values()).sort((a: any, b: any) => {
+      return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+    });
+
+    return NextResponse.json(mergedCustomers);
   } catch (error) {
     console.error('Error in customers endpoint:', error);
     return NextResponse.json(

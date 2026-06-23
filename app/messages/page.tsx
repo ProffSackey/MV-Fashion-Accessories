@@ -197,8 +197,8 @@ function MessagesContent() {
           ) : chatMessages.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center max-w-md">
-                <div className="text-6xl mb-4">💬</div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">How can we help?</h2>
+                <div className="mb-4 text-3xl">💬</div>
+                <h2 className="mb-2 text-xl font-bold text-gray-900">How can we help?</h2>
                 <p className="text-gray-600 text-sm">Send us a message and our support team will respond shortly.</p>
               </div>
             </div>

@@ -6,8 +6,9 @@ import SearchBar from './SearchBar';
 import { UserCircleIcon, MagnifyingGlassIcon, Bars3Icon, XMarkIcon, EnvelopeIcon, ShoppingBagIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/solid';
 
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabaseClient';
+import { signOutUser } from '../../lib/userSession';
 import { subscribeToGuestCartChanges, subscribeToUserCartChanges, migrateGuestCartToSupabase, fetchGuestCartFromSupabase, getGuestCartId } from '../../lib/cartUtils';
 import { useCart } from '../../lib/cartContext';
 import { getUserCartCount } from '../../lib/supabaseService';
@@ -16,6 +17,7 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
   // cart counts are now managed via context so that any consumer can update them
   const { guestCount, userCount, setGuestCount, setUserCount } = useCart();
   const [mounted, setMounted] = useState(false);
@@ -28,6 +30,7 @@ export default function Navbar() {
   const [categories, setCategories] = useState<string[]>([]);
   const [user, setUser] = useState<any>(null);
   const [firstName, setFirstName] = useState<string>('');
+  const [unreadMessages, setUnreadMessages] = useState(0);
 
   const isAdminSessionActive = async () => {
     try {
@@ -39,14 +42,10 @@ export default function Navbar() {
   };
 
   const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
-      setUser(null);
-      setFirstName('');
-      setUserCount(0);
-    } catch (error) {
-      console.error('Sign out failed:', error);
-    }
+    setUser(null);
+    setFirstName('');
+    setUserCount(0);
+    await signOutUser(pathname?.startsWith('/user') || pathname?.startsWith('/orders') || pathname?.startsWith('/messages') || pathname?.startsWith('/reviews') || pathname?.startsWith('/settings') ? router : undefined);
   };
 
   const applyUserSession = async (sessionUser: any | null) => {
@@ -188,6 +187,44 @@ export default function Navbar() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (!user?.email) {
+      setUnreadMessages(0);
+      return;
+    }
+
+    const loadUnreadMessages = async () => {
+      try {
+        const res = await fetch(`/api/messages/unread?email=${encodeURIComponent(user.email)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        setUnreadMessages(Number(data.count) || 0);
+      } catch (error) {
+        console.error('[Navbar] Failed to fetch unread message count:', error);
+      }
+    };
+
+    loadUnreadMessages();
+
+    const channel = supabase
+      .channel(`user-message-count-${user.email}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'messages',
+          filter: `recipient_email=eq.${user.email}`,
+        },
+        loadUnreadMessages
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [user?.email]);
+
   // Listen for immediate count update events (both server and guest changes)
   useEffect(() => {
     const userHandler = (ev: any) => {
@@ -324,13 +361,18 @@ export default function Navbar() {
 
           {/* icons */}
           <div className="flex flex-shrink-0 items-center gap-0.5 sm:gap-3">
-            <Link href="/help" aria-label="Help" className="hidden sm:inline-flex h-11 items-center gap-2 bg-white border border-gray-300 rounded-full px-4 text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition">
+            <Link href="/contact" aria-label="Help" className="hidden sm:inline-flex h-11 items-center gap-2 bg-white border border-gray-300 rounded-full px-4 text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition">
               <QuestionMarkCircleIcon className="h-5 w-5 text-gray-700" />
               <span className="text-sm font-medium text-gray-700">Help</span>
             </Link>
 
-            <Link href="/messages" aria-label="Messages" className="hidden sm:inline-flex h-11 w-11 items-center justify-center bg-white border border-gray-300 rounded-full hover:border-gray-400 hover:bg-gray-50 transition">
+            <Link href="/messages" aria-label="Messages" className="relative hidden sm:inline-flex h-11 w-11 items-center justify-center bg-white border border-gray-300 rounded-full hover:border-gray-400 hover:bg-gray-50 transition">
               <EnvelopeIcon className="h-5 w-5 text-gray-700" />
+              {unreadMessages > 0 && (
+                <span className="absolute -top-1 -right-1 bg-yellow-600 text-white text-xs font-bold rounded-full h-5 min-w-5 w-auto px-1 flex items-center justify-center whitespace-nowrap">
+                  {unreadMessages}
+                </span>
+              )}
             </Link>
 
             <button
@@ -464,7 +506,7 @@ export default function Navbar() {
                 )}
                 <li>
                   <Link
-                    href="/help"
+                    href="/contact"
                     className="block px-2 py-2 rounded hover:bg-gray-100 font-medium"
                     onClick={() => setMobileMenuOpen(false)}
                   >

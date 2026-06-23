@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../lib/supabaseClient";
+import { USER_SIGNED_OUT_EVENT } from "./userSession";
 
 export function useUserAuth() {
   const router = useRouter();
@@ -8,10 +9,16 @@ export function useUserAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const clearAndRedirect = () => {
+      setUser(null);
+      setLoading(false);
+      router.replace("/login");
+    };
+
     const checkAuth = async () => {
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
-        router.push("/login");
+        clearAndRedirect();
         return;
       }
       setUser(data.session.user);
@@ -25,13 +32,18 @@ export function useUserAuth() {
       if (session?.user) {
         setUser(session.user);
       } else {
-        setUser(null);
-        router.push("/login");
+        clearAndRedirect();
+        return;
       }
       setLoading(false);
     });
 
-    return () => subscription?.unsubscribe();
+    window.addEventListener(USER_SIGNED_OUT_EVENT, clearAndRedirect);
+
+    return () => {
+      subscription?.unsubscribe();
+      window.removeEventListener(USER_SIGNED_OUT_EVENT, clearAndRedirect);
+    };
   }, [router]);
 
   return { user, loading };

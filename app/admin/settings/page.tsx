@@ -5,8 +5,9 @@ export const dynamic = 'force-dynamic';
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AdminNavbar from "../../components/AdminNavbar";
+import AdminSidebar from "../../components/AdminSidebar";
 import { supabase } from '@/lib/supabaseClient';
-import { HomeIcon, UserGroupIcon, ShoppingCartIcon, CubeIcon, CreditCardIcon, ChartBarIcon, StarIcon, GiftIcon, BellIcon, EnvelopeIcon, CogIcon, CheckIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, UserGroupIcon, ShoppingCartIcon, CubeIcon, CreditCardIcon, ChartBarIcon, StarIcon, GiftIcon, BellIcon, EnvelopeIcon, NewspaperIcon, CogIcon, CheckIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
 import { useAdminSession } from "../../../lib/useAdminSession";
 
 interface ShippingZone {
@@ -27,6 +28,32 @@ const tabs = [
   { id: "Security", label: "Security", icon: "🔒" },
 ];
 
+const countrySuggestions = [
+  "Ghana",
+  "United Kingdom",
+  "United States",
+  "Canada",
+  "Nigeria",
+  "South Africa",
+  "Germany",
+  "France",
+  "Italy",
+  "Netherlands",
+];
+
+const countryDisplayNames: Record<string, string> = {
+  GB: "United Kingdom",
+  UK: "United Kingdom",
+  US: "United States",
+  USA: "United States",
+  GH: "Ghana",
+};
+
+const formatCountryName = (country: string) => {
+  const trimmed = country.trim();
+  return countryDisplayNames[trimmed.toUpperCase()] || trimmed;
+};
+
 export default function SettingsPage() {
   const router = useRouter();
   const { sessionChecked } = useAdminSession();
@@ -44,7 +71,7 @@ export default function SettingsPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newZone, setNewZone] = useState<ShippingZone>({
     name: '',
-    country: 'GB',
+    country: '',
     region: '',
     base_fee: 0,
     per_km_fee: 0,
@@ -279,7 +306,7 @@ export default function SettingsPage() {
         setShowAddForm(false);
         setNewZone({
           name: '',
-          country: 'GB',
+        country: '',
           region: '',
           base_fee: 0,
           per_km_fee: 0,
@@ -304,25 +331,9 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      <AdminNavbar />
+      <AdminNavbar onMenuToggle={setMobileMenuOpen} />
       <div className="flex">
-        {/* Sidebar */}
-        <div className="hidden md:block w-64 bg-white shadow-lg">
-          <nav className="space-y-3 text-gray-700 text-base px-4 py-6">
-            <a href="/admin/dashboard" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><HomeIcon className="h-5 w-5" />Dashboard Overview</a>
-            <a href="/admin/customers" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><UserGroupIcon className="h-5 w-5" />Customers</a>
-            <a href="/admin/orders" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><ShoppingCartIcon className="h-5 w-5" />Orders</a>
-            <a href="/admin/products" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><CubeIcon className="h-5 w-5" />Products</a>
-            <a href="/admin/transactions" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><CreditCardIcon className="h-5 w-5" />Transactions</a>
-            <a href="/admin/analytics" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><ChartBarIcon className="h-5 w-5" />Analytics</a>
-            <a href="/admin/reviews" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><StarIcon className="h-5 w-5" />Reviews</a>
-            <a href="/admin/promotions" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><GiftIcon className="h-5 w-5" />Promotions</a>
-            <a href="/admin/notifications" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><BellIcon className="h-5 w-5" />Notifications</a>
-            <a href="/admin/messages" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><EnvelopeIcon className="h-5 w-5" />Messages</a>
-            <a href="/admin/settings" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium bg-gray-100 transition"><CogIcon className="h-5 w-5" />Settings</a>
-          </nav>
-        </div>
-        {/* Mobile sidebar omitted for brevity */}
+        <AdminSidebar active="settings" mobileOpen={mobileMenuOpen} onMobileClose={() => setMobileMenuOpen(false)} />
         {/* Main content */}
         <div className="flex-1 flex flex-col bg-gray-50 min-h-screen overflow-x-auto">
           {/* Page header */}
@@ -528,16 +539,19 @@ export default function SettingsPage() {
                     <div className="px-8 py-8 space-y-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-semibold text-gray-900 mb-2">Country</label>
-                        <select
+                        <input
+                          type="text"
+                          list="admin-country-options"
+                          placeholder="e.g., Ghana, Canada, Nigeria"
                           value={newZone.country}
-                          onChange={(e) => setNewZone({ ...newZone, country: e.target.value })}
+                          onChange={(e) => setNewZone({ ...newZone, country: e.target.value.trimStart() })}
                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900"
-                        >
-                          <option value="">Select Country</option>
-                          <option value="GB">United Kingdom</option>
-                          <option value="US">United States</option>
-                          <option value="GH">Ghana</option>
-                        </select>
+                        />
+                        <datalist id="admin-country-options">
+                          {countrySuggestions.map((country) => (
+                            <option key={country} value={country} />
+                          ))}
+                        </datalist>
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-gray-900 mb-2">Zone Name</label>
@@ -624,11 +638,10 @@ export default function SettingsPage() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {["GB", "US", "GH"].map((country) => {
-                      const countryZones = shippingZones.filter((z) => z.country === country);
-                      if (countryZones.length === 0) return null;
+                    {Array.from(new Set(shippingZones.map((zone) => zone.country?.trim() || "Unspecified"))).map((country) => {
+                      const countryZones = shippingZones.filter((z) => (z.country?.trim() || "Unspecified") === country);
 
-                      const countryName = { GB: "🇬🇧 United Kingdom", US: "🇺🇸 United States", GH: "🇬🇭 Ghana" }[country];
+                      const countryName = formatCountryName(country);
 
                       return (
                         <div key={country} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -710,16 +723,18 @@ export default function SettingsPage() {
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-semibold text-gray-900 mb-2">Country</label>
-                          <select
+                          <input
+                            type="text"
+                            list="admin-edit-country-options"
                             value={editingZone.country}
-                            onChange={(e) => setEditingZone({ ...editingZone, country: e.target.value })}
+                            onChange={(e) => setEditingZone({ ...editingZone, country: e.target.value.trimStart() })}
                             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900"
-                          >
-                            <option value="">Select Country</option>
-                            <option value="GB">United Kingdom</option>
-                            <option value="US">United States</option>
-                            <option value="GH">Ghana</option>
-                          </select>
+                          />
+                          <datalist id="admin-edit-country-options">
+                            {countrySuggestions.map((country) => (
+                              <option key={country} value={country} />
+                            ))}
+                          </datalist>
                         </div>
                         <div>
                           <label className="block text-sm font-semibold text-gray-900 mb-2">Zone Name</label>

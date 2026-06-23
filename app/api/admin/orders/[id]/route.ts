@@ -61,6 +61,35 @@ export async function PATCH(
       );
     }
 
+    if (currentOrder.status !== status) {
+      try {
+        const { error: adminNotificationError } = await supabaseAdmin
+          .from('notifications')
+          .insert({
+            type: 'order_update',
+            title: `Order ${currentOrder.order_number} updated`,
+            message: `Order ${currentOrder.order_number} changed from ${currentOrder.status} to ${status}.`,
+            recipient_type: 'admin',
+            recipient_email: null,
+            action_url: `/admin/orders/${currentOrder.order_number}`,
+            metadata: {
+              order_id: currentOrder.id,
+              order_number: currentOrder.order_number,
+              previous_status: currentOrder.status,
+              new_status: status,
+              customer_email: currentOrder.customer_email,
+              customer_name: currentOrder.customer_name,
+            },
+          });
+
+        if (adminNotificationError) {
+          console.error('Error creating admin order update notification:', adminNotificationError);
+        }
+      } catch (adminNotificationError) {
+        console.error('Error creating admin order update notification:', adminNotificationError);
+      }
+    }
+
     // If status changed to "delivered", create review notification
     if (status === 'delivered' && currentOrder.status !== 'delivered') {
       try {
@@ -72,12 +101,12 @@ export async function PATCH(
             title: 'Leave a Review',
             message: `Your order ${currentOrder.order_number} has been delivered. Would you like to share your experience by leaving a review?`,
             recipient_type: 'customer',
-            recipient_email: currentOrder.email,
+            recipient_email: currentOrder.customer_email,
             metadata: {
               order_id: currentOrder.id,
               order_number: currentOrder.order_number,
-              customer_email: currentOrder.email,
-              customer_name: currentOrder.customer,
+              customer_email: currentOrder.customer_email,
+              customer_name: currentOrder.customer_name,
               review_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/orders/${currentOrder.order_number}/review`
             }
           });

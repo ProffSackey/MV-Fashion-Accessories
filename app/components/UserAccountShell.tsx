@@ -1,7 +1,8 @@
 "use client";
 
 import { ReactNode, useState } from "react";
-import { Bars3Icon } from "@heroicons/react/24/outline";
+import { useRouter } from "next/navigation";
+import { ArrowLeftIcon, Bars3Icon } from "@heroicons/react/24/outline";
 import UserSidebar from "./UserSidebar";
 
 interface UserAccountShellProps {
@@ -19,6 +20,7 @@ export default function UserAccountShell({
   children,
   maxWidth = "max-w-5xl",
 }: UserAccountShellProps) {
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const initials = (userName || "Account").slice(0, 2).toUpperCase();
 
@@ -49,6 +51,14 @@ export default function UserAccountShell({
 
         <main className="w-full px-4 py-5 sm:px-6 md:px-8 lg:px-10">
           <div className={`mx-auto w-full ${maxWidth}`}>
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="mb-4 inline-flex items-center gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:border-yellow-300 hover:text-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+            >
+              <ArrowLeftIcon className="h-4 w-4" />
+              Back
+            </button>
             <header className="mb-5 hidden md:block">
               <p className="text-sm font-semibold text-yellow-700">Account</p>
               <h1 className="mt-1 text-2xl font-bold text-gray-950">{title}</h1>

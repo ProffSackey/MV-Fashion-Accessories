@@ -1,5 +1,38 @@
+"use client";
+
+import { type FormEvent, useState } from "react";
+
 export default function Footer() {
   const year = new Date().getFullYear();
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubscribe = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setStatus("");
+
+    try {
+      const res = await fetch("/api/newsletter/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setStatus(data.error || "Could not subscribe right now.");
+        return;
+      }
+      setEmail("");
+      setStatus("Subscribed successfully.");
+    } catch (error) {
+      console.error("Newsletter subscribe failed:", error);
+      setStatus("Could not subscribe right now.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     // Added w-full and cleared any potential parent padding issues
@@ -71,25 +104,30 @@ export default function Footer() {
             <p className="mt-3 text-sm text-[#D9D9D9]">
               Get the latest deals and updates — subscribe to our newsletter.
             </p>
-            <form className="mt-4" aria-label="Subscribe to newsletter">
+            <form className="mt-4" aria-label="Subscribe to newsletter" onSubmit={handleSubscribe}>
               <label htmlFor="newsletter-email" className="sr-only">Email address</label>
               <div className="max-w-xs flex items-center bg-[#262626] border border-gray-700 rounded-full overflow-hidden shadow-sm">
                 <input
                   id="newsletter-email"
                   type="email"
                   name="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
                   autoComplete="email"
                   placeholder="yourmail@example.com"
                   className="flex-1 min-w-0 px-4 py-2 text-[#F2F2F2] placeholder:text-[#A8A8A8] text-sm bg-transparent border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-600/40"
                   aria-label="Email address"
+                  required
                 />
                 <button
                   type="submit"
+                  disabled={submitting}
                   className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 text-sm font-medium transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-600/40"
                 >
-                  Subscribe
+                  {submitting ? "..." : "Subscribe"}
                 </button>
               </div>
+              {status && <p className="mt-2 text-xs text-[#D9D9D9]">{status}</p>}
             </form>
           </div>
         </div>

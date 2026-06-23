@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation";
 import { UserCircleIcon, ShoppingBagIcon, EnvelopeIcon, StarIcon, CogIcon, ArrowLeftOnRectangleIcon, XMarkIcon } from "@heroicons/react/24/outline";
-import { supabase } from "../../lib/supabaseClient";
+import { signOutUser } from "../../lib/userSession";
 
 interface Props {
   userName: string;
@@ -38,12 +38,7 @@ export default function UserSidebar({ userName, mobileOpen, setMobileOpen, enabl
                 onClick={async () => {
                   // handle logout as special action
                   if (it.href === '#logout') {
-                    try {
-                      await supabase.auth.signOut({ scope: 'local' });
-                    } catch (e) {
-                      console.error('Logout failed', e);
-                    }
-                    router.push('/login');
+                    await signOutUser(router);
                     return;
                   }
                   router.push(it.href);
@@ -79,13 +74,8 @@ export default function UserSidebar({ userName, mobileOpen, setMobileOpen, enabl
                       key={it.href}
                       onClick={async () => {
                         if (it.href === '#logout') {
-                          try {
-                            await supabase.auth.signOut({ scope: 'local' });
-                          } catch (e) {
-                            console.error('Logout failed', e);
-                          }
                           setMobileOpen(false);
-                          router.push('/login');
+                          await signOutUser(router);
                           return;
                         }
                         setMobileOpen(false);

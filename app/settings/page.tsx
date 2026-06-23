@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
+import { USER_SIGNED_OUT_EVENT } from "../../lib/userSession";
 import UserAccountShell from "../components/UserAccountShell";
 import {
   CheckCircleIcon,
@@ -118,46 +119,80 @@ export default function SettingsPage() {
   useEffect(() => {
     let mounted = true;
 
+    const clearAndRedirect = () => {
+      if (!mounted) return;
+      setMetadata({});
+      setFullName("");
+      setEmail("");
+      setPhone("");
+      setAddressLine1("");
+      setAddressLine2("");
+      setCity("");
+      setRegion("");
+      setPostCode("");
+      setCountry("");
+      setLoading(false);
+      router.replace("/login");
+    };
+
+    const applySession = (user: NonNullable<Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]>["user"]) => {
+      const userMetadata = user.user_metadata || {};
+      const address = userMetadata.address || {};
+      const paymentDetails = userMetadata.paymentDetails || userMetadata.payment_details || {};
+      const savedMethod = paymentDetails.method === "card" ? "card" : "mobile_money";
+
+      setEmail(user.email || "");
+      setMetadata(userMetadata);
+      setFullName(userMetadata.full_name || user.email || "");
+      setPhone(userMetadata.phone || "");
+      setAddressLine1(address.street || "");
+      setAddressLine2(address.street2 || "");
+      setCity(address.city || "");
+      setRegion(address.region || "");
+      setPostCode(address.postCode || address.postcode || "");
+      setCountry(address.country || "");
+      setPaymentMethod(savedMethod);
+      setMomoProvider(paymentDetails.mobileMoney?.provider || "");
+      setMomoNumber(paymentDetails.mobileMoney?.number || "");
+      setMomoName(paymentDetails.mobileMoney?.accountName || "");
+      setCardholderName(paymentDetails.card?.cardholderName || "");
+      setCardNumber(paymentDetails.card?.last4 ? `**** **** **** ${paymentDetails.card.last4}` : "");
+      setCardExpiry(paymentDetails.card?.expiry || "");
+    };
+
     supabase.auth
       .getSession()
       .then(({ data }) => {
         if (!mounted) return;
 
         if (!data.session) {
-          router.replace("/login");
+          clearAndRedirect();
           return;
         }
 
-        const user = data.session.user;
-        const userMetadata = user.user_metadata || {};
-        const address = userMetadata.address || {};
-        const paymentDetails = userMetadata.paymentDetails || userMetadata.payment_details || {};
-        const savedMethod = paymentDetails.method === "card" ? "card" : "mobile_money";
-
-        setEmail(user.email || "");
-        setMetadata(userMetadata);
-        setFullName(userMetadata.full_name || user.email || "");
-        setPhone(userMetadata.phone || "");
-        setAddressLine1(address.street || "");
-        setAddressLine2(address.street2 || "");
-        setCity(address.city || "");
-        setRegion(address.region || "");
-        setPostCode(address.postCode || address.postcode || "");
-        setCountry(address.country || "");
-        setPaymentMethod(savedMethod);
-        setMomoProvider(paymentDetails.mobileMoney?.provider || "");
-        setMomoNumber(paymentDetails.mobileMoney?.number || "");
-        setMomoName(paymentDetails.mobileMoney?.accountName || "");
-        setCardholderName(paymentDetails.card?.cardholderName || "");
-        setCardNumber(paymentDetails.card?.last4 ? `**** **** **** ${paymentDetails.card.last4}` : "");
-        setCardExpiry(paymentDetails.card?.expiry || "");
+        applySession(data.session.user);
       })
       .finally(() => {
         if (mounted) setLoading(false);
       });
 
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        clearAndRedirect();
+        return;
+      }
+      applySession(session.user);
+      setLoading(false);
+    });
+
+    window.addEventListener(USER_SIGNED_OUT_EVENT, clearAndRedirect);
+
     return () => {
       mounted = false;
+      subscription.unsubscribe();
+      window.removeEventListener(USER_SIGNED_OUT_EVENT, clearAndRedirect);
     };
   }, [router]);
 

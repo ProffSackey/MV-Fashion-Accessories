@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AdminNavbar from "../../components/AdminNavbar";
-import { MagnifyingGlassIcon, HomeIcon, UserGroupIcon, ShoppingCartIcon, CubeIcon, CreditCardIcon, ChartBarIcon, StarIcon, GiftIcon, BellIcon, EnvelopeIcon, CogIcon } from "@heroicons/react/24/outline";
+import AdminSidebar from "../../components/AdminSidebar";
+import { MagnifyingGlassIcon, HomeIcon, UserGroupIcon, ShoppingCartIcon, CubeIcon, CreditCardIcon, ChartBarIcon, StarIcon, GiftIcon, BellIcon, EnvelopeIcon, NewspaperIcon, CogIcon } from "@heroicons/react/24/outline";
 import { supabaseAdmin } from "../../../lib/supabaseClient";
 
 interface MessageThread {
@@ -56,16 +57,30 @@ export default function MessagesPageContent() {
     if (threads.length === 0) return;
     const email = searchParams.get('email');
     const name = searchParams.get('name');
+    const selectThread = (thread: MessageThread) => {
+      setSelectedThread((current) => {
+        if (current?.id === thread.id && current.unread === 0) {
+          return current;
+        }
+        return { ...thread, unread: 0 };
+      });
+      setThreads((prev) => {
+        const hasUnread = prev.some((t) => t.id === thread.id && t.unread !== 0);
+        if (!hasUnread) {
+          return prev;
+        }
+        return prev.map((t) => (t.id === thread.id ? { ...t, unread: 0 } : t));
+      });
+    };
+
     if (email && name) {
       const thread = threads.find((t) => t.email === email);
       if (thread) {
-        thread.unread = 0; // Mark as read
-        setSelectedThread(thread);
+        selectThread(thread);
         return;
       }
     }
-    setSelectedThread(threads[0]);
-    threads[0].unread = 0;
+    selectThread(threads[0]);
   }, [searchParams, threads]);
 
   useEffect(() => {
@@ -226,25 +241,9 @@ export default function MessagesPageContent() {
 
   return (
     <div className="min-h-screen text-gray-900 bg-gray-100">
-      <AdminNavbar />
+      <AdminNavbar onMenuToggle={setMobileMenuOpen} />
       <div className="flex">
-        {/* Sidebar */}
-        <div className="hidden md:block w-64 bg-white shadow-lg">
-          <nav className="space-y-3 text-gray-700 text-base px-4 py-6">
-            <a href="/admin/dashboard" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><HomeIcon className="h-5 w-5" />Dashboard Overview</a>
-            <a href="/admin/customers" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><UserGroupIcon className="h-5 w-5" />Customers</a>
-            <a href="/admin/orders" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><ShoppingCartIcon className="h-5 w-5" />Orders</a>
-            <a href="/admin/products" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><CubeIcon className="h-5 w-5" />Products</a>
-            <a href="/admin/transactions" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><CreditCardIcon className="h-5 w-5" />Transactions</a>
-            <a href="/admin/analytics" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><ChartBarIcon className="h-5 w-5" />Analytics</a>
-            <a href="/admin/reviews" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><StarIcon className="h-5 w-5" />Reviews</a>
-            <a href="/admin/promotions" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><GiftIcon className="h-5 w-5" />Promotions</a>
-            <a href="/admin/notifications" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><BellIcon className="h-5 w-5" />Notifications</a>
-            <a href="/admin/messages" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium bg-gray-100 transition"><EnvelopeIcon className="h-5 w-5" />Messages</a>
-            <a href="/admin/settings" className="flex items-center gap-3 px-3 py-2 rounded hover:bg-gray-100 font-medium transition"><CogIcon className="h-5 w-5" />Settings</a>
-          </nav>
-        </div>
-
+        <AdminSidebar active="messages" mobileOpen={mobileMenuOpen} onMobileClose={() => setMobileMenuOpen(false)} />
         {/* Main content area */}
         <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
           {/* Threads list */}
@@ -267,8 +266,8 @@ export default function MessagesPageContent() {
                   <div
                     key={thread.id}
                     onClick={() => {
-                      thread.unread = 0;
-                      setSelectedThread(thread);
+                      setSelectedThread({ ...thread, unread: 0 });
+                      setThreads((prev) => prev.map((t) => (t.id === thread.id ? { ...t, unread: 0 } : t)));
                     }}
                     className={`px-4 py-4 border-b border-gray-100 cursor-pointer transition hover:bg-gray-50 ${
                       selectedThread?.id === thread.id ? "bg-gray-50 border-l-4 border-l-gray-400" : ""
@@ -367,7 +366,7 @@ export default function MessagesPageContent() {
                   <div className="flex gap-2">
                     <input
                       type="text"
-                      placeholder="Write a professional reply... (Enter to send)"
+                      placeholder="Write a reply... (Enter to send)"
                       value={newMessage}
                       onChange={(e) => setNewMessage(e.target.value)}
                       onKeyDown={handleSend}

@@ -189,7 +189,7 @@ export default function OrderReviewPage() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-lg shadow p-6 mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Rate Your Order</h1>
+          <h1 className="mb-2 text-2xl font-bold text-gray-900">Rate Your Order</h1>
           <p className="text-gray-600 mb-4">
             Help us improve by rating the products in your order
           </p>
@@ -209,8 +209,8 @@ export default function OrderReviewPage() {
 
         {submitStatus === 'success' ? (
           <div className="bg-white rounded-lg shadow p-8 text-center">
-            <div className="text-5xl mb-4">✓</div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h2>
+            <div className="mb-4 text-3xl">✓</div>
+            <h2 className="mb-2 text-xl font-bold text-gray-900">Thank You!</h2>
             <p className="text-gray-600 mb-6">
               Your reviews have been submitted successfully. We appreciate your feedback!
             </p>

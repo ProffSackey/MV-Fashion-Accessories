@@ -50,7 +50,7 @@ export default function CartPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [shippingInfo, setShippingInfo] = useState<ShippingInfo>({
-    country: "GB",
+    country: "",
     region: "",
     fullName: "",
     email: "",
@@ -66,6 +66,41 @@ export default function CartPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [userInitiated, setUserInitiated] = useState(false); // Track if user has changed country/region
+
+  const hydrateGuestCartItems = async () => {
+    const guestCart = await fetchGuestCartFromSupabase();
+    const productsById = new Map<string, any>();
+
+    await Promise.all(
+      guestCart.map(async (item) => {
+        try {
+          const res = await fetch(`/api/admin/products?id=${encodeURIComponent(item.productId)}`, { cache: 'no-store' });
+          if (!res.ok) return;
+          const data = await res.json();
+          const product = Array.isArray(data) ? data[0] : data;
+          if (product) productsById.set(item.productId, product);
+        } catch (error) {
+          console.error('[CartPage] Failed to hydrate guest product:', item.productId, error);
+        }
+      })
+    );
+
+    return guestCart.map((item) => {
+      const product = productsById.get(item.productId);
+      const stockQuantity = Number(product?.stock_quantity ?? 0);
+      return {
+        id: `guest-${item.productId}`,
+        product_id: item.productId,
+        quantity: Math.min(item.quantity, stockQuantity || item.quantity),
+        product: {
+          name: product?.name || item.name,
+          price: product?.price || item.price,
+          image_url: product?.image_url || item.image_url,
+          stock_quantity: stockQuantity,
+        },
+      };
+    });
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -102,20 +137,7 @@ export default function CartPage() {
 
       if (!user) {
         try {
-          const guestCart = await fetchGuestCartFromSupabase();
-          setCartItems(
-            guestCart.map((item) => ({
-              id: `guest-${item.productId}`,
-              product_id: item.productId,
-              quantity: item.quantity,
-              product: {
-                name: item.name,
-                price: item.price,
-                image_url: item.image_url,
-                stock_quantity: 999,
-              },
-            }))
-          );
+          setCartItems(await hydrateGuestCartItems());
         } catch (err) {
           console.error("[CartPage] Failed to load guest cart:", err);
           setCartItems([]);
@@ -268,20 +290,7 @@ export default function CartPage() {
 
     const handler = async () => {
       try {
-        const guestCart = await fetchGuestCartFromSupabase();
-        setCartItems(
-          guestCart.map((item) => ({
-            id: `guest-${item.productId}`,
-            product_id: item.productId,
-            quantity: item.quantity,
-            product: {
-              name: item.name,
-              price: item.price,
-              image_url: item.image_url,
-              stock_quantity: 999,
-            },
-          }))
-        );
+        setCartItems(await hydrateGuestCartItems());
       } catch (e) {
         console.error('[CartPage] Failed to refresh guest cart:', e);
       }
@@ -390,12 +399,13 @@ export default function CartPage() {
       !shippingInfo.fullName ||
       !shippingInfo.email ||
       !shippingInfo.phone ||
+      !shippingInfo.country ||
       !shippingInfo.address ||
       !shippingInfo.city ||
       !shippingInfo.postCode
     ) {
       setError(
-        "Please complete your profile/shipping information before checking out or update your account settings."
+        "Please complete your profile/shipping information, including country, before checking out or update your account settings."
       );
       return;
     }
@@ -736,63 +746,43 @@ export default function CartPage() {
                     }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
                   />
-                  <select
+                  <input
+                    type="text"
+                    list="shipping-country-options"
+                    placeholder="Country *"
                     value={shippingInfo.country}
                     onChange={(e) => {
                       setShippingInfo({
                         ...shippingInfo,
-                        country: e.target.value,
-                        region: "",
+                        country: e.target.value.trimStart(),
                       });
                       setUserInitiated(true);
                     }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                  >
-                    <option value="GB">United Kingdom</option>
-                    <option value="US">United States</option>
-                    <option value="GH">Ghana</option>
-                  </select>
+                  />
+                  <datalist id="shipping-country-options">
+                    <option value="Ghana" />
+                    <option value="United Kingdom" />
+                    <option value="United States" />
+                    <option value="Canada" />
+                    <option value="Nigeria" />
+                    <option value="South Africa" />
+                    <option value="Germany" />
+                    <option value="France" />
+                    <option value="Italy" />
+                    <option value="Netherlands" />
+                  </datalist>
 
-                  {shippingInfo.country === "GB" && (
-                    <input
-                      type="text"
-                      placeholder="Region Code (e.g., SW, NW)"
-                      value={shippingInfo.region}
-                      onChange={(e) => {
-                        setShippingInfo({ ...shippingInfo, region: e.target.value.toUpperCase() });
-                        setUserInitiated(true);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                    />
-                  )}
-
-                  {shippingInfo.country === "GH" && (
-                    <input
-                      type="text"
-                      placeholder="Region / State"
-                      value={shippingInfo.region}
-                      onChange={(e) => {
-                        setShippingInfo({ ...shippingInfo, region: e.target.value });
-                        setUserInitiated(true);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                    />
-                  )}
-
-                  {shippingInfo.country === "US" && (
-                    <select
-                      value={shippingInfo.region}
-                      onChange={(e) =>
-                        setShippingInfo({ ...shippingInfo, region: e.target.value })
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                    >
-                      <option value="">Select State</option>
-                      <option value="CA">California</option>
-                      <option value="CO">Colorado</option>
-                      <option value="GA">Georgia</option>
-                    </select>
-                  )}
+                  <input
+                    type="text"
+                    placeholder="Region / State / Province"
+                    value={shippingInfo.region}
+                    onChange={(e) => {
+                      setShippingInfo({ ...shippingInfo, region: e.target.value });
+                      setUserInitiated(true);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                  />
 
                   <input
                     type="text"

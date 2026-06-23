@@ -25,6 +25,13 @@ export async function GET(req: Request) {
       return NextResponse.json([], { status: 200 });
     }
 
+    await supabaseAdmin
+      .from('messages')
+      .update({ is_read: true })
+      .eq('sender_email', email)
+      .eq('recipient_email', 'admin@boanipa.com')
+      .eq('is_read', false);
+
     const messages = (data || []).map((m: any) => ({
       id: m.id,
       fromAdmin: m.sender_email !== email,

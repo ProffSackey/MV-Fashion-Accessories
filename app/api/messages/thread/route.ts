@@ -26,6 +26,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 });
     }
 
+    await supabaseAdmin
+      .from('messages')
+      .update({ is_read: true })
+      .eq('recipient_email', email)
+      .eq('is_read', false);
+
     const messages = (data || []).map(msg => ({
       id: msg.id,
       fromAdmin: msg.sender_email === 'admin@boanipa.com', // Assume admin email

@@ -27,6 +27,7 @@ export async function POST(request: NextRequest) {
         sender_email: email,
         recipient_email: 'admin@boanipa.com',
         body: safeContent,
+        is_read: false,
     }])
     .select();
 

@@ -27,6 +27,25 @@ const getCookie = (name: string): string | null => {
 
 export const getGuestCartId = (): string | null => getCookie(GUEST_CART_ID_COOKIE);
 
+const fetchCurrentProductStock = async (productId: string, fallback = 999): Promise<number> => {
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('stock_quantity')
+      .eq('id', productId)
+      .limit(1)
+      .single();
+
+    if (!error && data?.stock_quantity != null) {
+      return Number(data.stock_quantity) || 0;
+    }
+  } catch (error) {
+    console.error('[cartUtils] Failed to fetch current product stock:', error);
+  }
+
+  return Number(fallback) || 0;
+};
+
 const dispatchCartChangeEvent = (): void => {
   if (typeof window === 'undefined') return;
   (async () => {
@@ -104,16 +123,19 @@ export const getGuestCart = (): GuestCartItem[] => {
 export const addToGuestCart = async (item: GuestCartItem, maxStock: number = 999): Promise<void> => {
   if (typeof window === 'undefined') return;
   try {
+    const availableStock = await fetchCurrentProductStock(item.productId, maxStock);
+    if (availableStock <= 0) return;
+
     const current = await fetchGuestCartFromSupabase();
     const cart = Array.isArray(current) ? [...current] : [];
     const existingIndex = cart.findIndex(c => String((c as any).productId) === String(item.productId));
     if (existingIndex >= 0) {
       let newQuantity = Number((cart as any)[existingIndex].quantity || 0) + item.quantity;
-      if (newQuantity > maxStock) newQuantity = maxStock;
+      if (newQuantity > availableStock) newQuantity = availableStock;
       (cart as any)[existingIndex].quantity = newQuantity;
     } else {
       let quantity = item.quantity;
-      if (quantity > maxStock) quantity = maxStock;
+      if (quantity > availableStock) quantity = availableStock;
       cart.push({ ...item, quantity });
     }
     await saveGuestCartToSupabase(cart);
@@ -126,14 +148,15 @@ export const addToGuestCart = async (item: GuestCartItem, maxStock: number = 999
 export const updateGuestCartItem = async (productId: string, quantity: number, maxStock: number = 999): Promise<void> => {
   if (typeof window === 'undefined') return;
   try {
+    const availableStock = await fetchCurrentProductStock(productId, maxStock);
     const current = await fetchGuestCartFromSupabase();
     let cart = Array.isArray(current) ? [...current] : [];
-    if (quantity <= 0) {
+    if (quantity <= 0 || availableStock <= 0) {
       cart = cart.filter(c => String((c as any).productId) !== String(productId));
     } else {
       const item = cart.find(c => String((c as any).productId) === String(productId));
       if (item) {
-        if (quantity > maxStock) quantity = maxStock;
+        if (quantity > availableStock) quantity = availableStock;
         (item as any).quantity = quantity;
       }
     }
