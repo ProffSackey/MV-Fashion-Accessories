@@ -9,7 +9,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
     <CartProvider>
       <div className="flex flex-col min-h-screen w-full">
         <Navbar />
-        <main className="flex-grow w-screen">
+        <main className="w-full flex-grow pt-14 sm:pt-[106px]">
           {children}
         </main>
         <FooterWrapper />

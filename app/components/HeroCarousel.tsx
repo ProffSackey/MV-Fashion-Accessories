@@ -1,11 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 
 export default function HeroCarousel() {
-  const router = useRouter();
-
   return (
     <section className="relative w-full h-screen sm:h-[500px] md:h-[600px] xl:h-[700px] overflow-hidden" aria-label="Hero">
 
@@ -92,13 +89,13 @@ export default function HeroCarousel() {
           </p>
 
           <div className="mt-8 flex items-center justify-center gap-4">
-            <button
-              onClick={() => router.push('/products')}
+            <a
+              href="#featured-products"
               className="bg-yellow-500 hover:bg-yellow-700 text-gray-900 font-semibold px-8 py-3 rounded-md shadow-md transition"
               aria-label="Shop now"
             >
               SHOP NOW
-            </button>
+            </a>
           </div>
         </div>
       </div>

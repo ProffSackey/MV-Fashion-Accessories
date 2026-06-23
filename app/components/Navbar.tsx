@@ -293,17 +293,17 @@ export default function Navbar() {
   }, []);
 
   return (
-    <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 w-full">
+    <nav className="fixed left-0 top-0 z-50 w-full border-b border-gray-200 bg-white">
       {/* top row with logo and icons - visible on all screens */}
-      <div className="flex items-center justify-between h-14 sm:h-[68px] gap-2 px-3 sm:px-6 lg:px-8 w-full">
-          <div className="flex items-center gap-0 min-w-0">
+      <div className="flex h-14 w-full items-center gap-2 px-3 sm:h-[68px] sm:px-6 lg:px-8">
+          <div className="flex min-w-0 flex-1 items-center">
             {/* logo + site name */}
-            <div className="flex-shrink-0 ml-0">
-                <Link href="/" className="inline-flex items-center gap-0 ml-0">
-                  <div className="relative w-10 h-8 sm:w-10 sm:h-10 flex-shrink-0 ml-0 overflow-hidden">
+            <div className="min-w-0">
+                <Link href="/" className="inline-flex min-w-0 items-center gap-2">
+                  <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden sm:h-10 sm:w-10">
                   <Image src="/mvlog.jpg" alt="MV Fashion Accessories" fill className="object-contain" priority />
                 </div>
-                <span className="text-lg sm:text-xl lg:text-[22px] text-gray-900 font-semibold whitespace-nowrap leading-none">MV Fashion Accessories</span>
+                <span className="min-w-0 truncate text-base font-semibold leading-none text-gray-900 sm:text-xl lg:text-[22px]">MV Fashion Accessories</span>
               </Link>
             </div>
           </div>
@@ -312,7 +312,7 @@ export default function Navbar() {
           <SearchBar categories={categories} />
 
           {/* icons */}
-          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+          <div className="flex flex-shrink-0 items-center gap-1.5 sm:gap-3">
             <Link href="/help" aria-label="Help" className="hidden sm:inline-flex h-11 items-center gap-2 bg-white border border-gray-300 rounded-full px-4 text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition">
               <QuestionMarkCircleIcon className="h-5 w-5 text-gray-700" />
               <span className="text-sm font-medium text-gray-700">Help</span>
@@ -325,12 +325,12 @@ export default function Navbar() {
             <button
               onClick={() => setMobileSearchOpen(true)}
               aria-label="Open search"
-              className="p-2 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md transition sm:hidden"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm transition hover:shadow-md sm:hidden"
             >
               <MagnifyingGlassIcon className="h-5 w-5 text-gray-700" />
             </button>
 
-            <Link href="/cart" aria-label="Cart" className="inline-flex h-11 w-11 items-center justify-center bg-white border border-gray-300 rounded-full hover:border-gray-400 hover:bg-gray-50 transition relative">
+            <Link href="/cart" aria-label="Cart" className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white transition hover:border-gray-400 hover:bg-gray-50 sm:h-11 sm:w-11">
               <ShoppingBagIcon className="h-5 w-5 text-gray-700" />
               {cartCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-yellow-600 text-white text-xs font-bold rounded-full h-5 min-w-5 w-auto px-1 flex items-center justify-center whitespace-nowrap">
@@ -339,7 +339,7 @@ export default function Navbar() {
               )}
             </Link>
 
-            <Link href={user ? "/user" : "/login"} aria-label="Account" className="inline-flex h-11 items-center gap-2 bg-white border border-gray-300 rounded-full px-3 sm:px-4 hover:border-gray-400 hover:bg-gray-50 transition">
+            <Link href={user ? "/user" : "/login"} aria-label="Account" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white transition hover:border-gray-400 hover:bg-gray-50 sm:h-11 sm:w-auto sm:gap-2 sm:px-4">
               {user?.user_metadata?.avatar_url ? (
                 <img src={user.user_metadata.avatar_url} alt={firstName || 'Account'} className="h-7 w-7 rounded-full object-cover" />
               ) : (
@@ -351,7 +351,7 @@ export default function Navbar() {
             <button
               onClick={() => setMobileMenuOpen(true)}
               aria-label="Open menu"
-              className="p-2 bg-white border border-gray-200 rounded-full shadow-sm hover:shadow-md transition sm:hidden"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm transition hover:shadow-md sm:hidden"
             >
               <Bars3Icon className="h-5 w-5 text-gray-700" />
             </button>
@@ -362,26 +362,12 @@ export default function Navbar() {
       {mobileSearchOpen && (
         <div className="sm:hidden text-gray-600 bg-gray-50 border-t border-gray-200 w-full px-3 py-3">
           <div className="max-w-md mx-auto">
-            <form
-              className="flex items-center gap-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                setMobileSearchOpen(false);
-              }}
-            >
+            <div className="flex items-start gap-3">
               <button type="button" onClick={() => setMobileSearchOpen(false)} aria-label="Close search" className="p-2">
                 <XMarkIcon className="h-5 w-5 text-gray-600" />
               </button>
-              <div className="relative flex-1">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <input
-                  type="text"
-                  name="q"
-                  placeholder="Search for products, categories..."
-                  className="w-full pl-11 pr-4 py-2 rounded-full border border-gray-200 shadow-sm text-sm focus:outline-none"
-                />
-              </div>
-            </form>
+              <SearchBar categories={categories} variant="mobile" onNavigate={() => setMobileSearchOpen(false)} />
+            </div>
           </div>
         </div>
       )}
@@ -390,6 +376,12 @@ export default function Navbar() {
       <div className="hidden sm:block text-gray-700 bg-gray-50 border-t border-gray-200 w-full overflow-x-auto">
         <div className="w-full px-2 sm:px-6 lg:px-8">
           <div className="flex space-x-2 sm:space-x-6 py-2 text-[15px] sm:text-sm whitespace-nowrap overflow-x-auto scrollbar-hide">
+            <Link href="/about" className="hover:text-yellow-700 transition py-1 px-0.5 flex-shrink-0">
+              About Us
+            </Link>
+            <Link href="/contact" className="hover:text-yellow-700 transition py-1 px-0.5 flex-shrink-0">
+              Contact Us
+            </Link>
             {categories.map((cat) => (
               <Link
                 key={cat}
@@ -433,6 +425,24 @@ export default function Navbar() {
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     Help
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/about"
+                    className="block px-2 py-2 rounded hover:bg-gray-100 font-medium"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    About Us
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/contact"
+                    className="block px-2 py-2 rounded hover:bg-gray-100 font-medium"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Contact Us
                   </Link>
                 </li>
                 <li className="border-t border-gray-200 pt-2 mt-2">

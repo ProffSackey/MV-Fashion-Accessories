@@ -37,7 +37,7 @@ export default function Home() {
   ];
 
   const categoryHref = (cat: string) =>
-    `/category/${cat.toLowerCase().replace(/ & /g, "-").replace(/ /g, "-")}`;
+    `/category/${encodeURIComponent(cat.toLowerCase().replace(/ & /g, "-").replace(/\s+/g, "-"))}`;
 
   useEffect(() => {
     // Check auth status
@@ -260,7 +260,7 @@ export default function Home() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-yellow-50 to-white overflow-x-auto">
+    <div className="min-h-screen overflow-x-hidden bg-gradient-to-b from-yellow-50 to-white">
       {/* Hero Section */}
       <HeroCarousel />
       {notice && (
@@ -303,29 +303,29 @@ export default function Home() {
       )}
 
       {/* Featured Categories */}
-      <div className="px-4 sm:px-6 md:px-8 py-8 sm:py-12 max-w-7xl mx-auto text-gray-900">
+      <div className="mx-auto max-w-7xl px-4 py-8 text-gray-900 sm:px-6 sm:py-12 md:px-8">
         <div className="mb-6 sm:mb-8">
           <h2 className="text-2xl sm:text-2xl md:text-3xl font-bold">Featured Categories</h2>
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="scrollbar-hide -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-3 sm:-mx-6 sm:gap-5 sm:px-6 md:mx-0 md:grid md:grid-cols-3 md:gap-x-4 md:gap-y-8 md:overflow-visible md:px-0 md:pb-0 lg:grid-cols-6">
           {featuredCategories.map((category) => (
             <Link
               key={category.name}
               href={categoryHref(category.name)}
-              className="group flex flex-col items-center text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-4 rounded-lg"
+              className="group flex w-[104px] flex-none snap-start flex-col items-center rounded-lg text-center focus:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-4 sm:w-32 md:w-auto"
             >
-              <div className="relative h-28 w-28 sm:h-32 sm:w-32 lg:h-36 lg:w-36 rounded-full bg-white shadow-[0_12px_35px_rgba(15,23,42,0.12)] ring-1 ring-gray-100 transition duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_18px_45px_rgba(15,23,42,0.16)]">
-                <div className="absolute inset-3 overflow-hidden rounded-full bg-gray-50">
+              <div className="relative h-24 w-24 rounded-full bg-white shadow-[0_10px_26px_rgba(15,23,42,0.12)] ring-1 ring-gray-100 transition duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_18px_45px_rgba(15,23,42,0.16)] sm:h-32 sm:w-32 lg:h-36 lg:w-36">
+                <div className="absolute inset-2.5 overflow-hidden rounded-full bg-gray-50 sm:inset-3">
                   <Image
                     src={category.image}
                     alt={category.name}
                     fill
-                    sizes="(min-width: 1024px) 144px, 128px"
+                    sizes="(min-width: 1024px) 144px, (min-width: 640px) 128px, 96px"
                     className={`object-cover ${category.position} transition duration-300 group-hover:scale-105`}
                   />
                 </div>
               </div>
-              <span className="mt-4 max-w-[11rem] text-sm sm:text-base font-semibold leading-snug text-gray-900">
+              <span className="mt-3 max-w-[104px] text-sm font-semibold leading-snug text-gray-900 sm:mt-4 sm:max-w-[11rem] sm:text-base">
                 {category.name}
               </span>
             </Link>

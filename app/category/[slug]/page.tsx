@@ -2,7 +2,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { addToCart } from '@/lib/supabaseService';
@@ -11,13 +11,11 @@ import ProductCard from '../../components/ProductCard';
 import { addToGuestCart, subscribeToGuestCartChanges, subscribeToUserCartChanges, fetchGuestCartFromSupabase } from '@/lib/cartUtils';
 import { useCart } from '@/lib/cartContext';
 import { getUserCartCount } from '@/lib/supabaseService';
-import { useUserAuth } from '../../../lib/useUserAuth';
 
 
 export default function CategoryPage() {
   const { slug } = useParams();
-  const router = useRouter();
-  const { user } = useUserAuth();
+  const [user, setUser] = useState<any>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [addingToCart, setAddingToCart] = useState<string | null>(null);
@@ -26,6 +24,23 @@ export default function CategoryPage() {
 
   const categoryName = typeof slug === 'string' ? slug.replace(/-/g, ' ').toUpperCase() : 'Category';
   const categorySlug = typeof slug === 'string' ? slug.replace(/-/g, ' ') : '';
+
+  useEffect(() => {
+    let mounted = true;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (mounted) setUser(data.session?.user || null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => {
+      mounted = false;
+      subscription?.unsubscribe();
+    };
+  }, []);
 
   const handleAddToCart = async (productId: string) => {
     // Find the product to get its details
@@ -171,6 +186,11 @@ export default function CategoryPage() {
             </div>
           </div>
         )}
+        <div className="mb-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-yellow-700">Category</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-950 sm:text-4xl">{categoryName}</h1>
+        </div>
+
         {/* Products Grid - Responsive */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
           {loading ? (
