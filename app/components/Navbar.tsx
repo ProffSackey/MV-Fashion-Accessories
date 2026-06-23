@@ -38,6 +38,17 @@ export default function Navbar() {
     }
   };
 
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+      setUser(null);
+      setFirstName('');
+      setUserCount(0);
+    } catch (error) {
+      console.error('Sign out failed:', error);
+    }
+  };
+
   const applyUserSession = async (sessionUser: any | null) => {
     if (!sessionUser) {
       setUser(null);
@@ -295,15 +306,15 @@ export default function Navbar() {
   return (
     <nav className="fixed left-0 top-0 z-50 w-full border-b border-gray-200 bg-white">
       {/* top row with logo and icons - visible on all screens */}
-      <div className="flex h-14 w-full items-center gap-2 px-3 sm:h-[68px] sm:px-6 lg:px-8">
+      <div className="flex h-14 w-full items-center gap-1 px-2 sm:h-[68px] sm:gap-2 sm:px-6 lg:px-8">
           <div className="flex min-w-0 flex-1 items-center">
             {/* logo + site name */}
-            <div className="min-w-0">
-                <Link href="/" className="inline-flex min-w-0 items-center gap-2">
-                  <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden sm:h-10 sm:w-10">
+            <div className="min-w-0 max-w-[calc(100vw-168px)] sm:max-w-none">
+                <Link href="/" className="inline-flex min-w-0 max-w-full items-center gap-2">
+                  <div className="relative h-8 w-8 flex-shrink-0 overflow-hidden sm:h-10 sm:w-10">
                   <Image src="/mvlog.jpg" alt="MV Fashion Accessories" fill className="object-contain" priority />
                 </div>
-                <span className="min-w-0 truncate text-base font-semibold leading-none text-gray-900 sm:text-xl lg:text-[22px]">MV Fashion Accessories</span>
+                <span className="min-w-0 truncate text-sm font-semibold leading-none text-gray-900 sm:text-xl lg:text-[22px]">MV Fashion Accessories</span>
               </Link>
             </div>
           </div>
@@ -312,7 +323,7 @@ export default function Navbar() {
           <SearchBar categories={categories} />
 
           {/* icons */}
-          <div className="flex flex-shrink-0 items-center gap-1.5 sm:gap-3">
+          <div className="flex flex-shrink-0 items-center gap-0.5 sm:gap-3">
             <Link href="/help" aria-label="Help" className="hidden sm:inline-flex h-11 items-center gap-2 bg-white border border-gray-300 rounded-full px-4 text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition">
               <QuestionMarkCircleIcon className="h-5 w-5 text-gray-700" />
               <span className="text-sm font-medium text-gray-700">Help</span>
@@ -325,12 +336,12 @@ export default function Navbar() {
             <button
               onClick={() => setMobileSearchOpen(true)}
               aria-label="Open search"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm transition hover:shadow-md sm:hidden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-700 transition hover:bg-gray-50 sm:hidden"
             >
               <MagnifyingGlassIcon className="h-5 w-5 text-gray-700" />
             </button>
 
-            <Link href="/cart" aria-label="Cart" className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white transition hover:border-gray-400 hover:bg-gray-50 sm:h-11 sm:w-11">
+            <Link href="/cart" aria-label="Cart" className="relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-700 transition hover:bg-gray-50 sm:h-11 sm:w-11 sm:border sm:border-gray-300 sm:hover:border-gray-400">
               <ShoppingBagIcon className="h-5 w-5 text-gray-700" />
               {cartCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-yellow-600 text-white text-xs font-bold rounded-full h-5 min-w-5 w-auto px-1 flex items-center justify-center whitespace-nowrap">
@@ -339,7 +350,7 @@ export default function Navbar() {
               )}
             </Link>
 
-            <Link href={user ? "/user" : "/login"} aria-label="Account" className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-300 bg-white transition hover:border-gray-400 hover:bg-gray-50 sm:h-11 sm:w-auto sm:gap-2 sm:px-4">
+            <Link href={user ? "/user" : "/login"} aria-label="Account" className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-700 transition hover:bg-gray-50 sm:h-11 sm:w-auto sm:gap-2 sm:border sm:border-gray-300 sm:px-4 sm:hover:border-gray-400">
               {user?.user_metadata?.avatar_url ? (
                 <img src={user.user_metadata.avatar_url} alt={firstName || 'Account'} className="h-7 w-7 rounded-full object-cover" />
               ) : (
@@ -351,7 +362,7 @@ export default function Navbar() {
             <button
               onClick={() => setMobileMenuOpen(true)}
               aria-label="Open menu"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm transition hover:shadow-md sm:hidden"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white text-gray-700 transition hover:bg-gray-50 sm:hidden"
             >
               <Bars3Icon className="h-5 w-5 text-gray-700" />
             </button>
@@ -418,6 +429,39 @@ export default function Navbar() {
                     Home
                   </Link>
                 </li>
+                <li>
+                  {user ? (
+                    <button
+                      type="button"
+                      className="block w-full px-2 py-2 text-left rounded hover:bg-gray-100 font-medium"
+                      onClick={async () => {
+                        await handleSignOut();
+                        setMobileMenuOpen(false);
+                      }}
+                    >
+                      Sign Out
+                    </button>
+                  ) : (
+                    <Link
+                      href="/login"
+                      className="block px-2 py-2 rounded hover:bg-gray-100 font-medium"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Sign In
+                    </Link>
+                  )}
+                </li>
+                {user && (
+                  <li>
+                    <Link
+                      href="/user"
+                      className="block px-2 py-2 rounded hover:bg-gray-100 font-medium"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      My Account
+                    </Link>
+                  </li>
+                )}
                 <li>
                   <Link
                     href="/help"

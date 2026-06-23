@@ -21,7 +21,7 @@ export default function UserSidebar({ userName, mobileOpen, setMobileOpen, enabl
     { label: 'Messages', href: '/messages', icon: <EnvelopeIcon className="h-5 w-5" /> },
     { label: 'Ratings & Reviews', href: '/reviews', icon: <StarIcon className="h-5 w-5" /> },
     { label: 'Settings', href: '/settings', icon: <CogIcon className="h-5 w-5" /> },
-    { label: 'Logout', href: '#logout', icon: <ArrowLeftOnRectangleIcon className="h-5 w-5" /> },
+    { label: 'Sign Out', href: '#logout', icon: <ArrowLeftOnRectangleIcon className="h-5 w-5" /> },
   ];
 
   return (
@@ -37,7 +37,7 @@ export default function UserSidebar({ userName, mobileOpen, setMobileOpen, enabl
                 key={it.href}
                 onClick={async () => {
                   // handle logout as special action
-                  if (it.label === 'Logout') {
+                  if (it.href === '#logout') {
                     try {
                       await supabase.auth.signOut({ scope: 'local' });
                     } catch (e) {
@@ -78,7 +78,7 @@ export default function UserSidebar({ userName, mobileOpen, setMobileOpen, enabl
                     <button
                       key={it.href}
                       onClick={async () => {
-                        if (it.label === 'Logout') {
+                        if (it.href === '#logout') {
                           try {
                             await supabase.auth.signOut({ scope: 'local' });
                           } catch (e) {

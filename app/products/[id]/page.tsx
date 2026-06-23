@@ -4,24 +4,30 @@ export const dynamic = 'force-dynamic';
 
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 import { addToCart, getUserCartCount, type Product } from '@/lib/supabaseService';
 import { addToGuestCart, subscribeToGuestCartChanges, subscribeToUserCartChanges, fetchGuestCartFromSupabase } from '@/lib/cartUtils';
 import { useCart } from '@/lib/cartContext';
-import { useUserAuth } from '@/lib/useUserAuth';
 import ProductCard from '../../components/ProductCard';
 import { ChevronLeftIcon, ShoppingCartIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
 import ReviewCard, { Review } from '../../components/ReviewCard';
 import ProductRatingModal from '@/app/components/ProductRatingModal';
 import { parseCurrency } from '@/lib/currency';
 
+type PendingProductRating = {
+  productId: string;
+  name?: string;
+  image?: string;
+};
+
 export default function ProductDetailPage() {
   const params = useParams();
   const id = typeof params?.id === 'string' ? params.id : Array.isArray(params?.id) ? params.id[0] : null;
   const router = useRouter();
-  const { user } = useUserAuth();
   const { setGuestCount, setUserCount } = useCart();
 
+  const [user, setUser] = useState<User | null>(null);
   const [product, setProduct] = useState<Product | null>(null);
   const [recommendedProducts, setRecommendedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,8 +37,31 @@ export default function ProductDetailPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
-  const [currentProductRating, setCurrentProductRating] = useState<any | null>(null);
+  const [currentProductRating, setCurrentProductRating] = useState<PendingProductRating | null>(null);
   const [hasReviewed, setHasReviewed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (active) setUser(data.session?.user || null);
+      })
+      .catch((error) => {
+        console.error('[ProductDetail] Failed to check session:', error);
+        if (active) setUser(null);
+      });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -256,6 +285,12 @@ export default function ProductDetailPage() {
         setNotice('Added to cart');
         setTimeout(() => setNotice(null), 4000);
       } else {
+        if (!user.email) {
+          setNotice('Please sign in again to add this item');
+          setTimeout(() => setNotice(null), 4000);
+          return;
+        }
+
         // Add to user cart
         const result = await addToCart(user.email, product.id || '', 1, stock);
         
@@ -332,6 +367,12 @@ export default function ProductDetailPage() {
         setNotice('Added to cart');
         setTimeout(() => setNotice(null), 4000);
       } else {
+        if (!user.email) {
+          setNotice('Please sign in again to add this item');
+          setTimeout(() => setNotice(null), 4000);
+          return;
+        }
+
         const result = await addToCart(user.email, rec.id || '', 1, stock);
         
         try {
@@ -451,16 +492,18 @@ export default function ProductDetailPage() {
         onSubmit={async (rating: number, comment: string) => {
           try {
             if (!user?.id) throw new Error('You must be signed in to submit a review');
+            const reviewProductId = product?.id || currentProductRating?.productId;
+            if (!reviewProductId) throw new Error('Product not found');
             const res = await fetch('/api/reviews', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                product_id: product?.id || currentProductRating?.productId,
+                product_id: reviewProductId,
                 rating,
                 comment,
                 customer_id: user.id,
                 customer_email: user?.email || null,
-                customer_name: user?.name || (user?.email ? user.email.split('@')[0] : null),
+                customer_name: user.user_metadata?.full_name || (user?.email ? user.email.split('@')[0] : null),
               }),
             });
             if (!res.ok) {
@@ -470,7 +513,7 @@ export default function ProductDetailPage() {
               throw new Error(msg);
             }
             // refresh reviews
-            await fetchReviews(product?.id || currentProductRating?.productId);
+            await fetchReviews(reviewProductId);
             // mark as reviewed so modal won't re-open
             setHasReviewed(true);
             setRatingModalOpen(false);
