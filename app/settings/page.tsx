@@ -50,6 +50,41 @@ type UserMetadata = {
   [key: string]: unknown;
 };
 
+// Helper to build typed payment details and avoid inline casts
+function buildPaymentDetails(
+  pm: PaymentMethod,
+  opts: {
+    momoProvider?: string;
+    momoNumber?: string;
+    momoName?: string;
+    cardholderName?: string;
+    last4?: string;
+    expiry?: string;
+  }
+): UserMetadata["paymentDetails"] {
+  if (pm === "mobile_money") {
+    return {
+      method: "mobile_money",
+      mobileMoney: {
+        provider: opts.momoProvider || "",
+        number: opts.momoNumber || "",
+        accountName: opts.momoName || "",
+      },
+      card: null,
+    };
+  }
+
+  return {
+    method: "card",
+    mobileMoney: null,
+    card: {
+      cardholderName: opts.cardholderName || "",
+      last4: opts.last4 || "",
+      expiry: opts.expiry || "",
+    },
+  };
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -176,28 +211,16 @@ export default function SettingsPage() {
 
     setSaving("payment");
 
-    const paymentDetails =
-      paymentMethod === "mobile_money"
-        ? {
-            method: "mobile_money",
-            mobileMoney: {
-              provider: momoProvider.trim(),
-              number: momoNumber.trim(),
-              accountName: momoName.trim(),
-            },
-            card: null,
-          }
-        : {
-            method: "card",
-            mobileMoney: null,
-            card: {
-              cardholderName: cardholderName.trim(),
-              last4: digitsOnlyCardNumber.slice(-4),
-              expiry: cardExpiry.trim(),
-            },
-          };
+    const paymentDetails = buildPaymentDetails(paymentMethod, {
+      momoProvider: momoProvider.trim(),
+      momoNumber: momoNumber.trim(),
+      momoName: momoName.trim(),
+      cardholderName: cardholderName.trim(),
+      last4: digitsOnlyCardNumber.slice(-4),
+      expiry: cardExpiry.trim(),
+    });
 
-    const nextMetadata = { ...metadata, paymentDetails };
+    const nextMetadata: UserMetadata = { ...metadata, paymentDetails };
     const { error } = await supabase.auth.updateUser({ data: nextMetadata });
     setSaving(null);
 
