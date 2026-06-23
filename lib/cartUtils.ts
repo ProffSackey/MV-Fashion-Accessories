@@ -101,78 +101,70 @@ export const getGuestCart = (): GuestCartItem[] => {
   return [];
 };
 
-export const addToGuestCart = (item: GuestCartItem, maxStock: number = 999): void => {
+export const addToGuestCart = async (item: GuestCartItem, maxStock: number = 999): Promise<void> => {
   if (typeof window === 'undefined') return;
-  (async () => {
-    try {
-      const current = await fetchGuestCartFromSupabase();
-      const cart = Array.isArray(current) ? [...current] : [];
-      const existingIndex = cart.findIndex(c => String((c as any).productId) === String(item.productId));
-      if (existingIndex >= 0) {
-        let newQuantity = Number((cart as any)[existingIndex].quantity || 0) + item.quantity;
-        if (newQuantity > maxStock) newQuantity = maxStock;
-        (cart as any)[existingIndex].quantity = newQuantity;
-      } else {
-        let quantity = item.quantity;
-        if (quantity > maxStock) quantity = maxStock;
-        cart.push({ ...item, quantity });
-      }
-      await saveGuestCartToSupabase(cart);
-      dispatchCartChangeEvent();
-    } catch (e) {
-      console.error('[cartUtils] Error adding to guest cart (supabase):', e);
+  try {
+    const current = await fetchGuestCartFromSupabase();
+    const cart = Array.isArray(current) ? [...current] : [];
+    const existingIndex = cart.findIndex(c => String((c as any).productId) === String(item.productId));
+    if (existingIndex >= 0) {
+      let newQuantity = Number((cart as any)[existingIndex].quantity || 0) + item.quantity;
+      if (newQuantity > maxStock) newQuantity = maxStock;
+      (cart as any)[existingIndex].quantity = newQuantity;
+    } else {
+      let quantity = item.quantity;
+      if (quantity > maxStock) quantity = maxStock;
+      cart.push({ ...item, quantity });
     }
-  })();
+    await saveGuestCartToSupabase(cart);
+    dispatchCartChangeEvent();
+  } catch (e) {
+    console.error('[cartUtils] Error adding to guest cart (supabase):', e);
+  }
 };
 
-export const updateGuestCartItem = (productId: string, quantity: number, maxStock: number = 999): void => {
+export const updateGuestCartItem = async (productId: string, quantity: number, maxStock: number = 999): Promise<void> => {
   if (typeof window === 'undefined') return;
-  (async () => {
-    try {
-      const current = await fetchGuestCartFromSupabase();
-      let cart = Array.isArray(current) ? [...current] : [];
-      if (quantity <= 0) {
-        cart = cart.filter(c => String((c as any).productId) !== String(productId));
-      } else {
-        const item = cart.find(c => String((c as any).productId) === String(productId));
-        if (item) {
-          if (quantity > maxStock) quantity = maxStock;
-          (item as any).quantity = quantity;
-        }
-      }
-      await saveGuestCartToSupabase(cart);
-      dispatchCartChangeEvent();
-    } catch (e) {
-      console.error('[cartUtils] Error updating guest cart (supabase):', e);
-    }
-  })();
-};
-
-export const removeFromGuestCart = (productId: string): void => {
-  if (typeof window === 'undefined') return;
-  (async () => {
-    try {
-      const current = await fetchGuestCartFromSupabase();
-      let cart = Array.isArray(current) ? [...current] : [];
+  try {
+    const current = await fetchGuestCartFromSupabase();
+    let cart = Array.isArray(current) ? [...current] : [];
+    if (quantity <= 0) {
       cart = cart.filter(c => String((c as any).productId) !== String(productId));
-      await saveGuestCartToSupabase(cart);
-      dispatchCartChangeEvent();
-    } catch (e) {
-      console.error('[cartUtils] Error removing from guest cart (supabase):', e);
+    } else {
+      const item = cart.find(c => String((c as any).productId) === String(productId));
+      if (item) {
+        if (quantity > maxStock) quantity = maxStock;
+        (item as any).quantity = quantity;
+      }
     }
-  })();
+    await saveGuestCartToSupabase(cart);
+    dispatchCartChangeEvent();
+  } catch (e) {
+    console.error('[cartUtils] Error updating guest cart (supabase):', e);
+  }
 };
 
-export const clearGuestCart = (): void => {
+export const removeFromGuestCart = async (productId: string): Promise<void> => {
   if (typeof window === 'undefined') return;
-  (async () => {
-    try {
-      await saveGuestCartToSupabase([]);
-      dispatchCartChangeEvent();
-    } catch (e) {
-      console.error('[cartUtils] Failed clearing guest cart in Supabase:', e);
-    }
-  })();
+  try {
+    const current = await fetchGuestCartFromSupabase();
+    let cart = Array.isArray(current) ? [...current] : [];
+    cart = cart.filter(c => String((c as any).productId) !== String(productId));
+    await saveGuestCartToSupabase(cart);
+    dispatchCartChangeEvent();
+  } catch (e) {
+    console.error('[cartUtils] Error removing from guest cart (supabase):', e);
+  }
+};
+
+export const clearGuestCart = async (): Promise<void> => {
+  if (typeof window === 'undefined') return;
+  try {
+    await saveGuestCartToSupabase([]);
+    dispatchCartChangeEvent();
+  } catch (e) {
+    console.error('[cartUtils] Failed clearing guest cart in Supabase:', e);
+  }
 };
 
 export const getGuestCartCount = (): number => {

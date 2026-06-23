@@ -63,7 +63,7 @@ export default function CategoryPage() {
     try {
       if (!user) {
         // Add to guest cart with stock validation
-        addToGuestCart({
+        await addToGuestCart({
           productId: productId.toString(),
           quantity: 1,
           name: product.name,
@@ -186,9 +186,9 @@ export default function CategoryPage() {
             </div>
           </div>
         )}
-        <div className="mb-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-yellow-700">Category</p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-950 sm:text-4xl">{categoryName}</h1>
+        <div className="mb-6 sm:mb-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-yellow-700">Category</p>
+          <h1 className="mt-2 text-2xl font-bold tracking-tight text-gray-950 sm:text-3xl">{categoryName}</h1>
         </div>
 
         {/* Products Grid - Responsive */}

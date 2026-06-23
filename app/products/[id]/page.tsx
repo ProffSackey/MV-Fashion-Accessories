@@ -257,7 +257,7 @@ export default function ProductDetailPage() {
     try {
       if (!user) {
         // Add to guest cart
-        addToGuestCart({
+        await addToGuestCart({
           productId: product.id?.toString() || '',
           quantity: 1,
           name: product.name,
@@ -340,7 +340,7 @@ export default function ProductDetailPage() {
 
     try {
       if (!user) {
-        addToGuestCart({
+        await addToGuestCart({
           productId: rec.id?.toString() || '',
           quantity: 1,
           name: rec.name,

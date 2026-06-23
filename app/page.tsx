@@ -73,7 +73,7 @@ export default function Home() {
         console.log('[Cart] ===== GUEST CART PATH =====');
         console.log('[Cart] Adding to guest cart');
         // Add to guest cart with stock validation
-        addToGuestCart({
+        await addToGuestCart({
           productId: productId.toString(),
           quantity: 1,
           name: product.name,

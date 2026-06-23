@@ -4,13 +4,13 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { getCartItems, updateCartItemQuantity, removeFromCart, clearCart, addToCart, fetchPromotions } from "@/lib/supabaseService";
 import { MinusIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
-import { clearGuestCart, fetchGuestCartFromSupabase } from '@/lib/cartUtils';
+import { clearGuestCart, fetchGuestCartFromSupabase, removeFromGuestCart, updateGuestCartItem } from '@/lib/cartUtils';
 import { getProductPromotions, calculateDiscount } from "@/lib/promotionUtils";
 import type { Promotion as PromotionType } from "@/lib/supabaseService";
-import { useUserAuth } from "../../lib/useUserAuth";
 import { formatCurrency, parseCurrency } from "@/lib/currency";
 
 interface CartItem {
@@ -45,7 +45,8 @@ interface ShippingRate {
 
 export default function CartPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useUserAuth();
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [shippingInfo, setShippingInfo] = useState<ShippingInfo>({
@@ -66,11 +67,72 @@ export default function CartPage() {
   const [submitting, setSubmitting] = useState(false);
   const [userInitiated, setUserInitiated] = useState(false); // Track if user has changed country/region
 
+  useEffect(() => {
+    let mounted = true;
+
+    supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        if (!mounted) return;
+        setUser(data.session?.user || null);
+        setAuthLoading(false);
+      })
+      .catch((error) => {
+        console.error("[CartPage] Failed to check session:", error);
+        if (mounted) setAuthLoading(false);
+      });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+      setAuthLoading(false);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
   // Load cart from Supabase on mount
   useEffect(() => {
-    if (!user) return;
+    if (authLoading) return;
 
     const loadCart = async () => {
+      setLoading(true);
+
+      if (!user) {
+        try {
+          const guestCart = await fetchGuestCartFromSupabase();
+          setCartItems(
+            guestCart.map((item) => ({
+              id: `guest-${item.productId}`,
+              product_id: item.productId,
+              quantity: item.quantity,
+              product: {
+                name: item.name,
+                price: item.price,
+                image_url: item.image_url,
+                stock_quantity: 999,
+              },
+            }))
+          );
+        } catch (err) {
+          console.error("[CartPage] Failed to load guest cart:", err);
+          setCartItems([]);
+        }
+
+        try {
+          const promos = await fetchPromotions();
+          setPromotions(promos || []);
+        } catch (err) {
+          console.warn("[CartPage] Failed to load promotions:", err);
+          setPromotions([]);
+        }
+
+        setLoading(false);
+        return;
+      }
+
       const meta = user.user_metadata || {};
 
       // Normalize country to ISO codes where possible
@@ -138,7 +200,7 @@ export default function CartPage() {
           await addToCart(user.email || "", guestItem.productId, guestItem.quantity, 999);
         }
         // Clear guest cart after merging
-        clearGuestCart();
+        await clearGuestCart();
         // Reload items via API
         try {
           const userEmail = user.email || "";
@@ -175,7 +237,7 @@ export default function CartPage() {
     };
 
     loadCart();
-  }, [user]);
+  }, [authLoading, user]);
 
   // Subscribe to app-level cart change events so this page updates in real-time
   useEffect(() => {
@@ -200,6 +262,34 @@ export default function CartPage() {
     window.addEventListener('userCartChange', handler as EventListener);
     return () => window.removeEventListener('userCartChange', handler as EventListener);
   }, [user]);
+
+  useEffect(() => {
+    if (authLoading || user) return;
+
+    const handler = async () => {
+      try {
+        const guestCart = await fetchGuestCartFromSupabase();
+        setCartItems(
+          guestCart.map((item) => ({
+            id: `guest-${item.productId}`,
+            product_id: item.productId,
+            quantity: item.quantity,
+            product: {
+              name: item.name,
+              price: item.price,
+              image_url: item.image_url,
+              stock_quantity: 999,
+            },
+          }))
+        );
+      } catch (e) {
+        console.error('[CartPage] Failed to refresh guest cart:', e);
+      }
+    };
+
+    window.addEventListener('guestCartChange', handler as EventListener);
+    return () => window.removeEventListener('guestCartChange', handler as EventListener);
+  }, [authLoading, user]);
 
   // Calculate shipping fee when country/region changes (only if user initiated)
   useEffect(() => {
@@ -243,14 +333,16 @@ export default function CartPage() {
   }, [shippingInfo.country, shippingInfo.region, userInitiated]);
 
   const updateQuantity = async (productId: string, quantity: number) => {
-    if (!user?.email) return;
-
     if (quantity <= 0) {
       removeItem(productId);
     } else {
       const cartItem = cartItems.find((item) => item.product_id === productId);
       const stock = cartItem?.product?.stock_quantity || 0;
-      await updateCartItemQuantity(user.email, productId, quantity, stock);
+      if (user?.email) {
+        await updateCartItemQuantity(user.email, productId, quantity, stock);
+      } else {
+        await updateGuestCartItem(productId, quantity, stock || 999);
+      }
       const updated = cartItems.map((item) =>
         item.product_id === productId ? { ...item, quantity } : item
       );
@@ -259,9 +351,11 @@ export default function CartPage() {
   };
 
   const removeItem = async (productId: string) => {
-    if (!user?.email) return;
-
-    await removeFromCart(user.email, productId);
+    if (user?.email) {
+      await removeFromCart(user.email, productId);
+    } else {
+      await removeFromGuestCart(productId);
+    }
     setCartItems(cartItems.filter((item) => item.product_id !== productId));
   };
 
@@ -425,28 +519,12 @@ export default function CartPage() {
     }
   };
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600 mb-4">Please log in to view your cart</p>
-          <button
-            onClick={() => router.push("/login")}
-            className="px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition"
-          >
-            Go to Login
-          </button>
         </div>
       </div>
     );
@@ -482,7 +560,7 @@ export default function CartPage() {
       )}
 
       <div className="flex-1 max-w-7xl mx-auto w-full px-4 py-8 overflow-x-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Shopping Cart</h1>
+        <h1 className="mb-6 text-2xl font-bold text-gray-900 sm:mb-8">Shopping Cart</h1>
 
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
