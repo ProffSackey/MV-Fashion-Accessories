@@ -29,11 +29,11 @@ export default function Home() {
 
   const featuredCategories = [
     { name: "Necklace", image: "/hero.jpg", position: "object-center" },
-    { name: "Cute Purse", image: "/hero5.jpg", position: "object-center" },
+    { name: "Handfan", image: "/hf.jpg", position: "object-center" },
     { name: "African Print", image: "/hero7.jpg", position: "object-center" },
     { name: "Handbags", image: "/hero1.jpg", position: "object-center" },
     { name: "Bridal Earring", image: "/ear.jpg", position: "object-center" },
-    { name: "Handbag", image: "/hero4.jpg", position: "object-center" },
+     { name: "Cute Purse", image: "/hero5.jpg", position: "object-center" },
   ];
 
   const categoryHref = (cat: string) =>

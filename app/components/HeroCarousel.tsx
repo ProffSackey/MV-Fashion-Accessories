@@ -22,7 +22,7 @@ export default function HeroCarousel() {
 
           <div className="relative min-h-0 overflow-hidden rounded-2xl bg-stone-100 shadow-lg ring-1 ring-white/20 md:col-span-2 md:row-span-1">
             <Image
-              src="/hero6.jpg"
+              src="/he.jpg"
               alt=""
               fill
               priority
