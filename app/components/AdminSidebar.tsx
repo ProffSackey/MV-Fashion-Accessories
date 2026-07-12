@@ -25,6 +25,7 @@ type AdminSection =
   | "notifications"
   | "orders"
   | "products"
+  | "categories"
   | "promotions"
   | "transactions"
   | "customers"
@@ -45,6 +46,7 @@ const navItems = [
   { key: "notifications", label: "Notifications", href: "/admin/notifications", icon: BellIcon },
   { key: "orders", label: "Orders", href: "/admin/orders", icon: ShoppingCartIcon },
   { key: "products", label: "Products", href: "/admin/products", icon: CubeIcon },
+  { key: "categories", label: "Categories", href: "/admin/categories", icon: ChartBarIcon },
   { key: "promotions", label: "Promotions", href: "/admin/promotions", icon: GiftIcon },
   { key: "transactions", label: "Transactions", href: "/admin/transactions", icon: CreditCardIcon },
   { key: "customers", label: "Customers", href: "/admin/customers", icon: UserGroupIcon },

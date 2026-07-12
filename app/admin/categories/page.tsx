@@ -102,7 +102,7 @@ export default function CategoriesPage() {
       <AdminNavbar onMenuToggle={setMobileMenuOpen} />
 
       <div className="flex">
-        <AdminSidebar active="products" mobileOpen={mobileMenuOpen} onMobileClose={() => setMobileMenuOpen(false)} />
+        <AdminSidebar active="categories" mobileOpen={mobileMenuOpen} onMobileClose={() => setMobileMenuOpen(false)} />
 
         {/* Main Content */}
         <div className="flex-1">

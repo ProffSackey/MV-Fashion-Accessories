@@ -28,12 +28,12 @@ export default function Home() {
   const { setGuestCount, setUserCount } = useCart();
 
   const featuredCategories = [
-    { name: "Necklace", image: "/hero.jpg", position: "object-center" },
-    { name: "Handfan", image: "/hf.jpg", position: "object-center" },
-    { name: "African Print", image: "/hero7.jpg", position: "object-center" },
-    { name: "Handbags", image: "/hero1.jpg", position: "object-center" },
-    { name: "Bridal Earring", image: "/ear.jpg", position: "object-center" },
-     { name: "Cute Purse", image: "/hero5.jpg", position: "object-center" },
+    { name: "Jewelry", image: "/hero.jpg", position: "object-center" },
+    { name: "Shawls/Scarves", image: "/scalf.jpg", position: "object-center" },
+    { name: "Kente Cloth", image: "/kente.jpg", position: "object-center" },
+    { name: "Bags", image: "/bag.jpg", position: "object-center" },
+    { name: "Hair Accessories", image: "/hairaccess.jpg", position: "object-center" },
+     { name: "Purse", image: "/hero5.jpg", position: "object-center" },
   ];
 
   const categoryHref = (cat: string) =>
