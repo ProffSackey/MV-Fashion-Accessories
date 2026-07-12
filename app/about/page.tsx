@@ -30,7 +30,7 @@ export default function AboutPage() {
       <section className="mx-auto grid max-w-6xl grid-cols-1 gap-4 px-5 pb-20 sm:px-8 md:grid-cols-3">
         {[
           { src: "/hero.jpg", alt: "MV Fashion Accessories necklace collection" },
-          { src: "/hero7.jpg", alt: "African print purse collection" },
+          { src: "/kente.jpg", alt: "Kente cloth collection" },
           { src: "/hero4.jpg", alt: "MV Fashion Accessories handbag collection" },
         ].map((image) => (
           <div key={image.src} className="relative aspect-[4/5] overflow-hidden rounded-lg bg-gray-100">

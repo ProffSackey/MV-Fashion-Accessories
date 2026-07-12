@@ -33,7 +33,7 @@ export default function HeroCarousel() {
 
           <div className="relative min-h-0 overflow-hidden rounded-2xl bg-stone-100 shadow-lg ring-1 ring-white/20 md:col-span-1 md:row-span-1">
             <Image
-              src="/hero1.jpg"
+              src="/handfan.jpg"
               alt=""
               fill
               sizes="(min-width: 768px) 25vw, 50vw"
@@ -43,7 +43,7 @@ export default function HeroCarousel() {
 
           <div className="relative min-h-0 overflow-hidden rounded-2xl bg-stone-100 shadow-lg ring-1 ring-white/20 md:col-span-1 md:row-span-2">
             <Image
-              src="/hero7.jpg"
+              src="/kente.jpg"
               alt=""
               fill
               sizes="(min-width: 768px) 25vw, 50vw"
