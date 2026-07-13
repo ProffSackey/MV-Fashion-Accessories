@@ -5,6 +5,7 @@ import { useUserAuth } from "@/lib/useUserAuth";
 import ReviewCard from "@/app/components/ReviewCard";
 import { SparklesIcon } from "@heroicons/react/24/outline";
 import UserAccountShell from "../components/UserAccountShell";
+import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 interface Review {
   id: string;
@@ -36,7 +37,7 @@ export default function UserReviewsPage() {
     (async () => {
       setPendingLoading(true);
       try {
-        const ordersRes = await fetch('/api/customer-orders');
+        const ordersRes = await authenticatedFetch('/api/customer-orders');
         if (!ordersRes.ok) return;
         const orders = await ordersRes.json();
 
@@ -85,7 +86,7 @@ export default function UserReviewsPage() {
             customer_email: user?.email || null,
             customer_name: user?.name || (user?.email ? user.email.split('@')[0] : null),
           };
-          const res = await fetch('/api/reviews', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          const res = await authenticatedFetch('/api/reviews', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
           if (!res.ok) {
             let body = null;
             try { body = await res.json(); } catch (e) { /* ignore */ }
@@ -100,7 +101,7 @@ export default function UserReviewsPage() {
       setPendingReviews({});
 
       // refresh reviews
-      const resp = await fetch(`/api/reviews?customer_email=${encodeURIComponent(user?.email || '')}`);
+      const resp = await authenticatedFetch(`/api/reviews?customer_email=${encodeURIComponent(user?.email || '')}`);
       if (resp.ok) {
         const data = await resp.json();
         setReviews(data || []);
@@ -116,15 +117,13 @@ export default function UserReviewsPage() {
   useEffect(() => {
     const fetchReviews = async () => {
       if (!user?.email) {
-        console.log("No user email available:", user);
         setLoading(false);
         return;
       }
 
       try {
         setLoading(true);
-        console.log("Fetching reviews for email:", user.email);
-        const response = await fetch(
+        const response = await authenticatedFetch(
           `/api/reviews?customer_email=${encodeURIComponent(user.email)}`
         );
 

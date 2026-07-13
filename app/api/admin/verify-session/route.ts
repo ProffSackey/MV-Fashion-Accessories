@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   const cookieStore = await cookies();
-  const session = cookieStore.get('admin_session')?.value;
+  const session = cookieStore.get('sb-admin-token')?.value;
   const adminName = cookieStore.get('admin_name')?.value;
   const adminEmail = cookieStore.get('admin_email')?.value;
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
+import { requireAuthenticatedUser, sameEmail } from '@/lib/serverAuth';
 
 /**
  * GET /api/cart/items?email=user@example.com
@@ -9,11 +10,12 @@ import { getSupabaseAdmin } from '@/lib/supabaseClient';
 export async function GET(request: NextRequest) {
   try {
     const email = request.nextUrl.searchParams.get('email');
+    const user = await requireAuthenticatedUser(request);
 
-    if (!email) {
+    if (!user || !sameEmail(user.email, email)) {
       return NextResponse.json(
-        { error: 'Email parameter is required' },
-        { status: 400 }
+        { error: 'Unauthorized' },
+        { status: 401 }
       );
     }
 
@@ -24,8 +26,6 @@ export async function GET(request: NextRequest) {
         { status: 500 }
       );
     }
-
-    console.log('[API /cart/items] Fetching cart items for email:', email);
 
     // Fetch cart items with product details using admin client (bypasses RLS)
     const { data, error } = await supabaseAdmin
@@ -38,11 +38,7 @@ export async function GET(request: NextRequest) {
       .order('added_at', { ascending: false });
 
     if (error) {
-      console.error('[API /cart/items] Error fetching cart items:', {
-        email,
-        message: error.message,
-        code: error.code
-      });
+      console.error('[API /cart/items] Failed to fetch cart items:', error.code);
       return NextResponse.json(
         { error: 'Failed to fetch cart items' },
         { status: 500 }
@@ -51,7 +47,6 @@ export async function GET(request: NextRequest) {
 
     // Filter out orphaned cart items (where product was deleted)
     const validItems = (data || []).filter(item => item.product != null);
-    console.log('[API /cart/items] Fetched', (data || []).length, 'items,', validItems.length, 'valid for email:', email);
 
     // Clean up orphaned items in the background
     if (validItems.length !== (data || []).length) {
@@ -60,7 +55,6 @@ export async function GET(request: NextRequest) {
         .map(item => item.id);
 
       if (orphanedIds.length > 0) {
-        console.log('[API /cart/items] Cleaning up', orphanedIds.length, 'orphaned items');
         // Fire and forget cleanup
         (async () => {
           try {
@@ -68,8 +62,7 @@ export async function GET(request: NextRequest) {
               .from('cart_items')
               .delete()
               .in('id', orphanedIds);
-            console.log('[API /cart/items] Successfully cleaned orphaned items');
-          } catch (err: any) {
+          } catch (err: unknown) {
             console.error('[API /cart/items] Error cleaning orphaned items:', err);
           }
         })();

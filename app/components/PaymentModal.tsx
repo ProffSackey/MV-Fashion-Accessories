@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { CreditCardIcon, DevicePhoneMobileIcon, LockClosedIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@/lib/currency";
+import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 type Method = "mobile_money" | "card";
 type Challenge = "otp" | "pin" | "phone" | "birthday" | "address";
@@ -31,10 +32,6 @@ export default function PaymentModal({ orderId, total, initialMethod, shippingAd
   const [method, setMethod] = useState<Method>(initialMethod);
   const [provider, setProvider] = useState("mtn");
   const [phone, setPhone] = useState("");
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvv, setCvv] = useState("");
-  const [cardName, setCardName] = useState("");
   const [reference, setReference] = useState("");
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [challengeValue, setChallengeValue] = useState("");
@@ -49,7 +46,7 @@ export default function PaymentModal({ orderId, total, initialMethod, shippingAd
   }, []);
 
   const verify = async (paymentReference: string) => {
-    const response = await fetch("/api/paystack/verify", {
+    const response = await authenticatedFetch("/api/paystack/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ reference: paymentReference, order_id: orderId }),
@@ -61,7 +58,7 @@ export default function PaymentModal({ orderId, total, initialMethod, shippingAd
 
   const checkPayment = async (paymentReference: string) => {
     try {
-      const response = await fetch("/api/paystack/charge/check", {
+      const response = await authenticatedFetch("/api/paystack/charge/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reference: paymentReference }),
@@ -119,22 +116,26 @@ export default function PaymentModal({ orderId, total, initialMethod, shippingAd
     setMessage("");
     pollAttempts.current = 0;
     try {
-      const [expiryMonth = "", expiryYear = ""] = expiry.split("/").map((part) => part.trim());
-      const response = await fetch("/api/paystack/charge", {
+      if (method === "card") {
+        const response = await authenticatedFetch("/api/paystack/card/initialize", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order_id: orderId }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result.authorization_url) throw new Error(result.error || "Could not start secure card payment");
+        window.location.assign(result.authorization_url);
+        return;
+      }
+
+      const response = await authenticatedFetch("/api/paystack/charge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(method === "mobile_money" ? {
+        body: JSON.stringify({
           order_id: orderId,
           payment_method: method,
           provider,
           phone,
-        } : {
-          order_id: orderId,
-          payment_method: method,
-          card_number: cardNumber,
-          cvv,
-          expiry_month: expiryMonth,
-          expiry_year: expiryYear,
         }),
       });
       const result = await response.json();
@@ -152,7 +153,7 @@ export default function PaymentModal({ orderId, total, initialMethod, shippingAd
     setBusy(true);
     setError("");
     try {
-      const response = await fetch("/api/paystack/charge/submit", {
+      const response = await authenticatedFetch("/api/paystack/charge/submit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -176,8 +177,6 @@ export default function PaymentModal({ orderId, total, initialMethod, shippingAd
       setError(paymentError instanceof Error ? paymentError.message : "Could not continue payment");
     }
   };
-
-  const formatCardNumber = (value: string) => value.replace(/\D/g, "").slice(0, 19).replace(/(.{4})/g, "$1 ").trim();
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-gray-950/60 p-3 backdrop-blur-sm sm:p-6">
@@ -225,23 +224,12 @@ export default function PaymentModal({ orderId, total, initialMethod, shippingAd
                   </div>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-semibold text-gray-700">Name on card</label>
-                    <input value={cardName} onChange={(e) => setCardName(e.target.value)} autoComplete="cc-name" className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-100" required />
-                  </div>
-                  <div>
-                    <label className="text-sm font-semibold text-gray-700">Card number</label>
-                    <input value={cardNumber} onChange={(e) => setCardNumber(formatCardNumber(e.target.value))} inputMode="numeric" autoComplete="cc-number" placeholder="0000 0000 0000 0000" className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-3 font-mono tracking-wide text-gray-900 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-100" required />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-green-200 bg-green-50 p-5">
+                  <div className="flex items-start gap-3">
+                    <LockClosedIcon className="mt-0.5 h-6 w-6 flex-shrink-0 text-green-700" />
                     <div>
-                      <label className="text-sm font-semibold text-gray-700">Expiry</label>
-                      <input value={expiry} onChange={(e) => setExpiry(e.target.value.replace(/[^\d/]/g, "").slice(0, 7))} autoComplete="cc-exp" placeholder="MM/YY" className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-100" required />
-                    </div>
-                    <div>
-                      <label className="text-sm font-semibold text-gray-700">CVV</label>
-                      <input value={cvv} onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))} type="password" inputMode="numeric" autoComplete="cc-csc" placeholder="123" className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-3 text-gray-900 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-100" required />
+                      <h3 className="font-bold text-green-950">Secure card payment</h3>
+                      <p className="mt-1 text-sm text-green-800">For your protection, card number and CVV are entered only on Paystack’s PCI-compliant secure page. MV Fashion Accessories never receives or stores them.</p>
                     </div>
                   </div>
                 </div>

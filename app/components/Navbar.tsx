@@ -111,7 +111,6 @@ export default function Navbar() {
     // Fetch user's cart count if logged in
     const fetchUserCartCount = async (email: string) => {
       try {
-        console.log('[Navbar] Fetching user cart count for email:', email);
         const count = await getUserCartCount(email);
         console.log('[Navbar] User cart count fetched successfully:', count, 'setting userCount to:', count);
         setUserCount(count);
@@ -139,17 +138,14 @@ export default function Navbar() {
           },
           (payload) => {
             // Refetch cart count on any change
-            console.log('[Navbar] Realtime cart_items change detected:', payload.eventType, 'for user:', user.email, 'triggering fetch');
             fetchUserCartCount(user.email);
           }
         )
         .subscribe((status) => {
-          console.log('[Navbar] Realtime subscription status for user', user.email, ':', status);
         });
 
       // Also subscribe to custom user cart change events
       const unsubscribeCustom = subscribeToUserCartChanges(user.email, () => {
-        console.log('[Navbar] Custom user cart change event received for:', user.email, 'triggering fetch');
         fetchUserCartCount(user.email);
       });
 
@@ -258,7 +254,6 @@ export default function Navbar() {
     supabase.auth
       .getSession()
       .then(({ data }) => {
-        console.log('[Navbar] Initial session check:', !!data.session, 'user email:', data.session?.user?.email);
         applyUserSession(data.session?.user || null);
       })
       .catch((err) => {
@@ -267,7 +262,6 @@ export default function Navbar() {
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[Navbar] Auth state change:', event, 'session exists:', !!session);
       applyUserSession(session?.user || null);
     });
 

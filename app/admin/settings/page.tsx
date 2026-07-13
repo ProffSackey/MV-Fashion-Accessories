@@ -208,7 +208,6 @@ export default function SettingsPage() {
       // retrieve fresh access token from Supabase client session
       const { data: { session } } = await supabase.auth.getSession();
       const currentToken = session?.access_token;
-      // console.log('[SETTINGS] Token retrieved from Supabase session:', !!currentToken); // Removed for security
 
       const requestBody: { currentPassword: string; newPassword: string; accessToken?: string } = {
         currentPassword,
@@ -261,7 +260,6 @@ export default function SettingsPage() {
           await supabase.auth.signOut();
           router.push('/admin/login');
         } else if (newSession) {
-          console.log('[SETTINGS] session refreshed after password update');
         }
       } catch (refreshErr) {
         console.error('[SETTINGS] error refreshing session', refreshErr);

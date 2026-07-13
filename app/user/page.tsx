@@ -9,6 +9,7 @@ import { supabase } from "../../lib/supabaseClient";
 import { USER_SIGNED_OUT_EVENT } from "../../lib/userSession";
 import { EnvelopeIcon, PhoneIcon, MapPinIcon, StarIcon } from "@heroicons/react/24/outline";
 import UserAccountShell from "../components/UserAccountShell";
+import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 interface Order {
   id: string;
@@ -118,7 +119,7 @@ export default function UserPage() {
       };
 
       try {
-        const res = await fetch(`/api/customer-orders?email=${encodeURIComponent(builtProfile.email)}`);
+        const res = await authenticatedFetch(`/api/customer-orders?email=${encodeURIComponent(builtProfile.email)}`);
         const ordersData: RawOrder[] = res.ok ? await res.json() : [];
         if (Array.isArray(ordersData) && ordersData.length > 0) {
           builtProfile.orders = ordersData.map((o) => ({

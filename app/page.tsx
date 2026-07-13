@@ -50,7 +50,6 @@ export default function Home() {
 
   const handleAddToCart = async (productId: string) => {
     console.log('[Cart] ===== START handleAddToCart =====');
-    console.log('[Cart] handleAddToCart called with productId:', productId, 'user:', !!user, 'userEmail:', user?.email);
     // Find the product to get its details
     const product = [...trendingProducts, ...newStockProducts].find(p => p.id === productId);
     if (!product) {
@@ -120,7 +119,6 @@ export default function Home() {
         }, 1500);
       } else {
         console.log('[Cart] ===== USER CART PATH =====');
-        console.log('[Cart] Adding to user cart for email:', user.email);
         // Add to user cart with known stock and wait for server-side cart update
         const cartResult = await addToCart(user.email, productId, 1, stock);
         console.log('[Cart] addToCart result:', cartResult);

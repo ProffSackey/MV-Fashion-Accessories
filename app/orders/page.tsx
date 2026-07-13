@@ -9,6 +9,7 @@ import { formatPrice } from "@/lib/promotionUtils";
 import { parseCurrency } from "@/lib/currency";
 import { useUserAuth } from "../../lib/useUserAuth";
 import UserSidebar from "../components/UserSidebar";
+import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 interface OrderItem {
   price?: string | number;
@@ -40,7 +41,7 @@ export default function OrdersPage() {
     const fetchOrders = async () => {
       try {
         const userEmail = user.email || "";
-        const res = await fetch(`/api/customer-orders?email=${encodeURIComponent(userEmail)}`);
+        const res = await authenticatedFetch(`/api/customer-orders?email=${encodeURIComponent(userEmail)}`);
         if (res.ok) {
           const data = await res.json();
           setOrders(data);

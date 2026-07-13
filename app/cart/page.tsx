@@ -13,6 +13,7 @@ import { getProductPromotions, calculateDiscount } from "@/lib/promotionUtils";
 import type { Promotion as PromotionType } from "@/lib/supabaseService";
 import { formatCurrency, parseCurrency } from "@/lib/currency";
 import PaymentModal from "@/app/components/PaymentModal";
+import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 interface CartItem {
   id: string;
@@ -247,9 +248,8 @@ export default function CartPage() {
       let items: CartItem[] = [];
       try {
         const userEmail = user.email || "";
-        console.log('[CartPage] Fetching cart items via API for:', userEmail);
         // Use API endpoint instead of direct client call to bypass RLS
-        const res = await fetch(`/api/cart/items?email=${encodeURIComponent(userEmail)}`);
+        const res = await authenticatedFetch(`/api/cart/items?email=${encodeURIComponent(userEmail)}`);
         if (res.ok) {
           items = await res.json();
           console.log('[CartPage] Fetched', items.length, 'cart items');
@@ -276,7 +276,7 @@ export default function CartPage() {
         // Reload items via API
         try {
           const userEmail = user.email || "";
-          const res = await fetch(`/api/cart/items?email=${encodeURIComponent(userEmail)}`);
+          const res = await authenticatedFetch(`/api/cart/items?email=${encodeURIComponent(userEmail)}`);
           if (res.ok) {
             const updatedItems = await res.json();
             setCartItems(updatedItems);
@@ -318,8 +318,7 @@ export default function CartPage() {
         const customEvent = event as CustomEvent<{ email?: string }>;
         const email = customEvent.detail?.email || (user && user.email) || null;
         if (!email) return;
-        console.log('[CartPage] Cart change event received, reloading items for:', email);
-        const res = await fetch(`/api/cart/items?email=${encodeURIComponent(email)}`);
+        const res = await authenticatedFetch(`/api/cart/items?email=${encodeURIComponent(email)}`);
         if (res.ok) {
           const items = await res.json();
           setCartItems(items);
@@ -546,7 +545,7 @@ export default function CartPage() {
         status: "pending",
       };
 
-      const res = await fetch("/api/orders", {
+      const res = await authenticatedFetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(orderData),

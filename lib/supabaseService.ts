@@ -917,7 +917,6 @@ export interface CartItem {
  */
 export const getCartItems = async (email: string): Promise<CartItem[]> => {
   try {
-    console.log('[getCartItems] Fetching cart items for email:', email);
     const { data, error } = await supabase
       .from('cart_items')
       .select(`
@@ -928,7 +927,7 @@ export const getCartItems = async (email: string): Promise<CartItem[]> => {
       .order('added_at', { ascending: false });
 
     if (error) {
-      console.error('[getCartItems] Error fetching cart items for', email, '- Error:', {
+      console.error('[getCartItems] Error fetching cart items:', {
         message: error.message,
         code: error.code,
         hint: error.hint
@@ -938,7 +937,6 @@ export const getCartItems = async (email: string): Promise<CartItem[]> => {
 
     // Filter out items where product is null (orphaned cart items)
     const validItems = (data || []).filter(item => item.product != null);
-    console.log('[getCartItems] Fetched', (data || []).length, 'items for', email, ', valid items:', validItems.length);
 
     // If there were orphaned items, clean them up
     if (validItems.length !== (data || []).length) {
@@ -979,7 +977,7 @@ export const getUserCartCount = async (email: string): Promise<number> => {
       .eq('customer_email', email);
 
     if (error) {
-      console.error('Error fetching cart count for email:', email, 'Error:', error);
+      console.error('Error fetching cart count:', error);
       // Log additional context
       if (error.message && error.message.includes('401')) {
         console.error('Cart count fetch returned 401 - possible RLS permission issue');
@@ -988,7 +986,6 @@ export const getUserCartCount = async (email: string): Promise<number> => {
     }
 
     const rows = (data || []) as any[];
-    console.debug('[getUserCartCount] Raw rows fetched:', rows.length, 'for email:', email);
     
     // Count all cart items regardless of whether product exists
     const count = rows.reduce((sum: number, r: any) => sum + (Number(r.quantity) || 0), 0);
@@ -1111,7 +1108,6 @@ export const addToCart = async (
         const errMsg = JSON.stringify(insertError || {});
         const isDuplicate = (insertError && ((insertError.code === '23505') || (insertError.message && String(insertError.message).includes('duplicate key'))));
         if (isDuplicate) {
-          console.debug('Duplicate insert detected for cart item, handling by incrementing existing row:', { email, productId, insertError: errMsg });
         } else {
           console.error('Error inserting cart item:', insertError, errMsg);
         }

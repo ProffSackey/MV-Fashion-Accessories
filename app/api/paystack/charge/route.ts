@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseClient";
+import { requireAuthenticatedUser, sameEmail } from "@/lib/serverAuth";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,6 +13,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Order and payment method are required" }, { status: 400 });
     }
 
+    const user = await requireAuthenticatedUser(request);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (method === "card") {
+      return NextResponse.json({ error: "Direct card collection is disabled for security" }, { status: 400 });
+    }
+
     const admin = getSupabaseAdmin();
     if (!admin) return NextResponse.json({ error: "Service role not configured" }, { status: 500 });
     const { data: order } = await admin
@@ -20,6 +27,7 @@ export async function POST(request: NextRequest) {
       .eq("id", body.order_id)
       .single();
     if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    if (!sameEmail(user.email, order.customer_email)) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     if (order.payment_status === "paid") return NextResponse.json({ error: "Order is already paid" }, { status: 409 });
 
     const reference = `MV-${order.order_number}-${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
@@ -42,15 +50,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Enter a valid Mobile Money number and network" }, { status: 400 });
       }
       payload.mobile_money = { phone, provider };
-    } else {
-      const number = String(body.card_number || "").replace(/\D/g, "");
-      const cvv = String(body.cvv || "").replace(/\D/g, "");
-      const expiryMonth = String(body.expiry_month || "").padStart(2, "0");
-      const expiryYear = String(body.expiry_year || "");
-      if (!/^\d{13,19}$/.test(number) || !/^\d{3,4}$/.test(cvv) || !/^(0[1-9]|1[0-2])$/.test(expiryMonth) || !/^\d{2,4}$/.test(expiryYear)) {
-        return NextResponse.json({ error: "Enter valid card details" }, { status: 400 });
-      }
-      payload.card = { number, cvv, expiry_month: expiryMonth, expiry_year: expiryYear.slice(-2) };
     }
 
     const response = await fetch("https://api.paystack.co/charge", {

@@ -115,9 +115,6 @@ export default function SettingsPage() {
   const [momoProvider, setMomoProvider] = useState("");
   const [momoNumber, setMomoNumber] = useState("");
   const [momoName, setMomoName] = useState("");
-  const [cardholderName, setCardholderName] = useState("");
-  const [cardNumber, setCardNumber] = useState("");
-  const [cardExpiry, setCardExpiry] = useState("");
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -197,9 +194,6 @@ export default function SettingsPage() {
       setMomoProvider(paymentDetails.mobileMoney?.provider || "");
       setMomoNumber(paymentDetails.mobileMoney?.number || "");
       setMomoName(paymentDetails.mobileMoney?.accountName || "");
-      setCardholderName(paymentDetails.card?.cardholderName || "");
-      setCardNumber(paymentDetails.card?.last4 ? `**** **** **** ${paymentDetails.card.last4}` : "");
-      setCardExpiry(paymentDetails.card?.expiry || "");
     };
 
     supabase.auth
@@ -275,15 +269,6 @@ export default function SettingsPage() {
         setNotice({ type: "error", text: "Complete your mobile money provider, number, and account name." });
         return;
       }
-    } else if (!cardholderName.trim() || !cardNumber.trim() || !cardExpiry.trim()) {
-      setNotice({ type: "error", text: "Complete your cardholder name, card number, and expiry date." });
-      return;
-    }
-
-    const digitsOnlyCardNumber = cardNumber.replace(/\D/g, "");
-    if (paymentMethod === "card" && digitsOnlyCardNumber.length < 4) {
-      setNotice({ type: "error", text: "Enter a valid card number." });
-      return;
     }
 
     setSaving("payment");
@@ -292,9 +277,9 @@ export default function SettingsPage() {
       momoProvider: momoProvider.trim(),
       momoNumber: momoNumber.trim(),
       momoName: momoName.trim(),
-      cardholderName: cardholderName.trim(),
-      last4: digitsOnlyCardNumber.slice(-4),
-      expiry: cardExpiry.trim(),
+      cardholderName: "",
+      last4: "",
+      expiry: "",
     });
 
     const nextMetadata: UserMetadata = { ...metadata, paymentDetails };
@@ -307,9 +292,6 @@ export default function SettingsPage() {
     }
 
     setMetadata(nextMetadata);
-    if (paymentMethod === "card") {
-      setCardNumber(`**** **** **** ${digitsOnlyCardNumber.slice(-4)}`);
-    }
     setNotice({ type: "success", text: "Payment details saved." });
   };
 
@@ -520,19 +502,8 @@ export default function SettingsPage() {
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div>
-                <label className={labelClass} htmlFor="cardholderName">Cardholder name</label>
-                <input id="cardholderName" value={cardholderName} onChange={(e) => setCardholderName(e.target.value)} className={inputClass} autoComplete="cc-name" />
-              </div>
-              <div>
-                <label className={labelClass} htmlFor="cardNumber">Card number</label>
-                <input id="cardNumber" value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} className={inputClass} inputMode="numeric" autoComplete="cc-number" />
-              </div>
-              <div>
-                <label className={labelClass} htmlFor="cardExpiry">Expiry date</label>
-                <input id="cardExpiry" value={cardExpiry} onChange={(e) => setCardExpiry(e.target.value)} className={inputClass} placeholder="MM/YY" autoComplete="cc-exp" />
-              </div>
+            <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+              Card details are entered only on Paystack’s secure PCI-compliant page during checkout. This account page never receives or stores a card number or CVV.
             </div>
           )}
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseClient";
 import { parseCurrency } from "@/lib/currency";
+import { requireAuthenticatedUser, sameEmail } from "@/lib/serverAuth";
 
 type CheckoutItem = {
   product_id?: string;
@@ -14,6 +15,7 @@ type CheckoutItem = {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    const user = await requireAuthenticatedUser(request);
     const {
       customer_name,
       customer_email,
@@ -22,6 +24,9 @@ export async function POST(request: NextRequest) {
       shipping_address,
     } = body;
 
+    if (!user || !sameEmail(user.email, customer_email)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     if (!customer_name || !customer_email || !Array.isArray(items) || items.length === 0) {
       return NextResponse.json({ error: "Missing required order details" }, { status: 400 });
     }

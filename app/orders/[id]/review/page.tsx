@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { useUserAuth } from '@/lib/useUserAuth';
 import { StarIcon } from '@heroicons/react/24/solid';
+import { authenticatedFetch } from '@/lib/authenticatedFetch';
 
 interface OrderItem {
   productId?: string;
@@ -54,7 +55,7 @@ export default function OrderReviewPage() {
   useEffect(() => {
     const fetchOrder = async () => {
       try {
-        const res = await fetch(`/api/orders/${orderId}`);
+        const res = await authenticatedFetch(`/api/orders/${orderId}`);
         if (!res.ok) {
           throw new Error('Failed to fetch order');
         }
@@ -120,7 +121,7 @@ export default function OrderReviewPage() {
       const reviewPromises = Object.entries(reviews)
         .filter(([_, review]) => review.rating > 0)
         .map(async ([_, review]) => {
-          const res = await fetch('/api/reviews', {
+          const res = await authenticatedFetch('/api/reviews', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

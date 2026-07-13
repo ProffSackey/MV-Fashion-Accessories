@@ -38,7 +38,7 @@ export default function AdminReviewsPage() {
     const fetchReviews = async () => {
       try {
         setLoading(true);
-        const response = await fetch("/api/reviews");
+        const response = await fetch("/api/admin/reviews");
         if (!response.ok) throw new Error("Failed to fetch reviews");
         const data = await response.json();
         
@@ -79,7 +79,7 @@ export default function AdminReviewsPage() {
 
   const handleApprove = async (reviewId: string) => {
     try {
-      const response = await fetch(`/api/reviews?id=${reviewId}`, {
+      const response = await fetch(`/api/admin/reviews?id=${reviewId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'approved' }),
@@ -101,7 +101,7 @@ export default function AdminReviewsPage() {
 
   const handleReject = async (reviewId: string) => {
     try {
-      const response = await fetch(`/api/reviews?id=${reviewId}`, {
+      const response = await fetch(`/api/admin/reviews?id=${reviewId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'rejected' }),

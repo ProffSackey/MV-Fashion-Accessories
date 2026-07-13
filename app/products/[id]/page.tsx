@@ -14,6 +14,7 @@ import { ChevronLeftIcon, ShoppingCartIcon, EnvelopeIcon } from '@heroicons/reac
 import ReviewCard, { Review } from '../../components/ReviewCard';
 import ProductRatingModal from '@/app/components/ProductRatingModal';
 import { formatCurrency, parseCurrency } from '@/lib/currency';
+import { authenticatedFetch } from '@/lib/authenticatedFetch';
 
 type PendingProductRating = {
   productId: string;
@@ -118,7 +119,7 @@ export default function ProductDetailPage() {
         (async () => {
           try {
             if (!user?.email) return;
-            const ordersRes = await fetch(`/api/customer-orders?email=${encodeURIComponent(user.email)}`);
+            const ordersRes = await authenticatedFetch(`/api/customer-orders?email=${encodeURIComponent(user.email)}`);
             if (!ordersRes.ok) return;
             const orders = await ordersRes.json();
 
@@ -131,7 +132,7 @@ export default function ProductDetailPage() {
               if (!containsProduct) continue;
 
               // Check whether a review already exists for this product by this user
-              const revRes = await fetch(`/api/reviews?product_id=${encodeURIComponent(productData.id)}&customer_email=${encodeURIComponent(user.email)}`);
+              const revRes = await authenticatedFetch(`/api/reviews?product_id=${encodeURIComponent(productData.id)}&customer_email=${encodeURIComponent(user.email)}`);
               if (!revRes.ok) continue; // fallback: don't prompt
               const revs = await revRes.json();
               if (Array.isArray(revs) && revs.length === 0 && !hasReviewed) {
@@ -494,7 +495,7 @@ export default function ProductDetailPage() {
             if (!user?.id) throw new Error('You must be signed in to submit a review');
             const reviewProductId = product?.id || currentProductRating?.productId;
             if (!reviewProductId) throw new Error('Product not found');
-            const res = await fetch('/api/reviews', {
+            const res = await authenticatedFetch('/api/reviews', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({

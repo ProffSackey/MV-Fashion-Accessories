@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
 
         if (insertError) {
           errors.push(`Failed to create customer for ${user.email}: ${insertError.message}`);
-          console.error(`Error for ${user.email}:`, insertError);
+          console.error('Customer synchronization failed:', insertError);
         } else {
           created++;
         }

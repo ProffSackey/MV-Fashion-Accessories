@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useUserAuth } from "@/lib/useUserAuth";
 import { CheckCircleIcon, ClockIcon, TruckIcon, CubeIcon, ArrowLeftIcon, QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
 import ProductRatingModal from "@/app/components/ProductRatingModal";
+import { authenticatedFetch } from "@/lib/authenticatedFetch";
 
 interface OrderItem {
   productId: string;
@@ -93,7 +94,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
     const fetchOrder = async () => {
       try {
-        const res = await fetch(`/api/customer-orders?email=${encodeURIComponent(user.email || '')}`);
+        const res = await authenticatedFetch(`/api/customer-orders?email=${encodeURIComponent(user.email || '')}`);
         if (res.ok) {
           const data = await res.json();
           const foundOrder = data.find((o: OrderData) => o.id === id || o.order_number === id);
@@ -119,7 +120,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
           try {
             // Check if a review exists for this product tied to this order
-            const res = await fetch(`/api/reviews?product_id=${encodeURIComponent(item.productId)}&order_id=${encodeURIComponent(order.id)}&customer_email=${encodeURIComponent(order.customer_email)}`);
+            const res = await authenticatedFetch(`/api/reviews?product_id=${encodeURIComponent(item.productId)}&order_id=${encodeURIComponent(order.id)}&customer_email=${encodeURIComponent(order.customer_email)}`);
             if (!res.ok) {
               // If the reviews endpoint fails, skip this item to avoid blocking the UI
               console.warn('Could not check existing review for product', item.productId);
@@ -150,7 +151,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     if (!currentProductRating || !order || !user?.id) return;
 
     try {
-      const response = await fetch("/api/reviews", {
+      const response = await authenticatedFetch("/api/reviews", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

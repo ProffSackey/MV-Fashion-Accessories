@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabaseClient';
+import { requireAuthenticatedUser } from '@/lib/serverAuth';
 
 /**
  * GET /api/customer-orders?email=user@example.com
@@ -8,12 +9,13 @@ import { getSupabaseAdmin } from '@/lib/supabaseClient';
  */
 export async function GET(request: NextRequest) {
   try {
-    const email = request.nextUrl.searchParams.get('email');
+    const user = await requireAuthenticatedUser(request);
+    const email = user?.email || null;
 
-    if (!email) {
+    if (!user || !email) {
       return NextResponse.json(
-        { error: 'Email parameter is required' },
-        { status: 400 }
+        { error: 'Unauthorized' },
+        { status: 401 }
       );
     }
 

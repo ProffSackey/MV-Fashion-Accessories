@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseClient";
+import { requireAuthenticatedUser, sameEmail } from "@/lib/serverAuth";
 
 type OrderItem = { product_id?: string; quantity?: number };
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuthenticatedUser(request);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) {
       return NextResponse.json({ error: "Paystack secret key is not configured" }, { status: 500 });
@@ -28,6 +31,9 @@ export async function POST(request: NextRequest) {
 
     if (orderError || !order) {
       return NextResponse.json({ error: "Order was not found" }, { status: 404 });
+    }
+    if (!sameEmail(user.email, order.customer_email)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
     if (order.payment_status === "paid") {
       return NextResponse.json({ success: true, order_number: order.order_number, already_verified: true });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseClient";
+import { requireAuthenticatedUser, sameEmail } from "@/lib/serverAuth";
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,6 +8,12 @@ export async function GET(request: NextRequest) {
     const productId = url.searchParams.get("product_id");
     const orderId = url.searchParams.get("order_id");
     const customerEmail = url.searchParams.get("customer_email");
+    if (customerEmail) {
+      const user = await requireAuthenticatedUser(request);
+      if (!user || !sameEmail(user.email, customerEmail)) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+    }
 
     const supabase = getSupabaseAdmin(); // read access ok with anon but admin simplifies later updates
     if (!supabase) {
@@ -52,7 +59,6 @@ export async function GET(request: NextRequest) {
     // Transform the data to include customer_email and customer_name at the top level
     const transformedData = (data || []).map((review: any) => ({
       ...review,
-      customer_email: review.customers?.email || null,
       customer_name: review.customers?.name || null,
     }));
 
@@ -65,6 +71,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await requireAuthenticatedUser(request);
+    if (!user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const body = await request.json();
     const { product_id, rating, comment, title, customer_id, order_id } = body;
 
@@ -75,6 +83,15 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseAdmin();
     if (!supabase) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
+    }
+
+    const { data: verifiedCustomer } = await supabase
+      .from("customers")
+      .select("id")
+      .ilike("email", user.email)
+      .maybeSingle();
+    if (!verifiedCustomer || String(verifiedCustomer.id) !== String(customer_id)) {
+      return NextResponse.json({ error: "Customer identity does not match the signed-in account" }, { status: 403 });
     }
 
     // insert new review data object
@@ -218,46 +235,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(newReview);
   } catch (e) {
     console.error("Unexpected error in POST /api/reviews", e);
-    return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
-  }
-}
-
-export async function PATCH(request: NextRequest) {
-  try {
-    const url = new URL(request.url);
-    const reviewId = url.searchParams.get("id");
-
-    if (!reviewId) {
-      return NextResponse.json({ error: "Review ID is required" }, { status: 400 });
-    }
-
-    const body = await request.json();
-    const { status } = body;
-
-    if (!status || !["approved", "pending", "rejected"].includes(status)) {
-      return NextResponse.json({ error: "Valid status (approved, pending, rejected) is required" }, { status: 400 });
-    }
-
-    const supabase = getSupabaseAdmin();
-    if (!supabase) {
-      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
-    }
-
-    const { data: updatedReview, error: updateErr } = await supabase
-      .from("reviews")
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq("id", reviewId)
-      .select()
-      .single();
-
-    if (updateErr) {
-      console.error("Error updating review status:", updateErr);
-      return NextResponse.json({ error: updateErr.message }, { status: 500 });
-    }
-
-    return NextResponse.json(updatedReview);
-  } catch (e) {
-    console.error("Unexpected error in PATCH /api/reviews", e);
     return NextResponse.json({ error: "Unexpected error" }, { status: 500 });
   }
 }

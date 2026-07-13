@@ -321,7 +321,18 @@ DROP POLICY IF EXISTS "Reviews are visible to all" ON public.reviews;
 CREATE POLICY "Reviews are visible to all" ON public.reviews FOR SELECT USING (status = 'approved' OR auth.role() = 'service_role');
 
 DROP POLICY IF EXISTS "Customers can insert reviews" ON public.reviews;
-CREATE POLICY "Customers can insert reviews" ON public.reviews FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Authenticated customers can insert reviews" ON public.reviews;
+CREATE OR REPLACE FUNCTION public.current_user_owns_customer(target_customer_id uuid)
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.customers c
+    WHERE c.id = target_customer_id
+      AND lower(c.email) = lower(coalesce(auth.jwt() ->> 'email', ''))
+  );
+$$;
+REVOKE ALL ON FUNCTION public.current_user_owns_customer(uuid) FROM public;
+GRANT EXECUTE ON FUNCTION public.current_user_owns_customer(uuid) TO authenticated;
+CREATE POLICY "Authenticated customers can insert reviews" ON public.reviews FOR INSERT TO authenticated WITH CHECK (public.current_user_owns_customer(customer_id));
 
 DROP POLICY IF EXISTS "Customers can see own cart" ON public.cart_items;
 CREATE POLICY "Customers can see own cart" ON public.cart_items FOR SELECT USING (auth.jwt() ->> 'email' = customer_email OR auth.role() = 'service_role');
@@ -337,7 +348,7 @@ CREATE POLICY "Guest carts browser access" ON public.guest_carts FOR ALL USING (
 
 DROP POLICY IF EXISTS "Admins can see notifications" ON public.notifications;
 CREATE POLICY "Admins can see notifications" ON public.notifications
-  FOR SELECT USING (auth.role() = 'service_role' OR recipient_type IN ('admin', 'all'));
+  FOR SELECT TO service_role USING (true);
 
 DROP POLICY IF EXISTS "Customers can see own notifications" ON public.notifications;
 CREATE POLICY "Customers can see own notifications" ON public.notifications
@@ -345,11 +356,11 @@ CREATE POLICY "Customers can see own notifications" ON public.notifications
 
 DROP POLICY IF EXISTS "Insert notifications" ON public.notifications;
 CREATE POLICY "Insert notifications" ON public.notifications
-  FOR INSERT WITH CHECK (auth.role() = 'service_role' OR recipient_type IN ('admin', 'customer', 'all'));
+  FOR INSERT TO service_role WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Admins update notifications" ON public.notifications;
 CREATE POLICY "Admins update notifications" ON public.notifications
-  FOR UPDATE USING (auth.role() = 'service_role' OR recipient_type IN ('admin', 'all'));
+  FOR UPDATE TO service_role USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Customer update own notification" ON public.notifications;
 CREATE POLICY "Customer update own notification" ON public.notifications
@@ -381,15 +392,15 @@ CREATE POLICY "Products bucket public read" ON storage.objects
 
 DROP POLICY IF EXISTS "Products bucket authenticated upload" ON storage.objects;
 CREATE POLICY "Products bucket authenticated upload" ON storage.objects
-  FOR INSERT WITH CHECK (bucket_id IN ('products', 'product-images') AND (auth.role() = 'authenticated' OR auth.role() = 'service_role'));
+  FOR INSERT TO service_role WITH CHECK (bucket_id IN ('products', 'product-images'));
 
 DROP POLICY IF EXISTS "Products bucket authenticated update" ON storage.objects;
 CREATE POLICY "Products bucket authenticated update" ON storage.objects
-  FOR UPDATE USING (bucket_id IN ('products', 'product-images') AND (auth.role() = 'authenticated' OR auth.role() = 'service_role'));
+  FOR UPDATE TO service_role USING (bucket_id IN ('products', 'product-images')) WITH CHECK (bucket_id IN ('products', 'product-images'));
 
 DROP POLICY IF EXISTS "Products bucket admin delete" ON storage.objects;
 CREATE POLICY "Products bucket admin delete" ON storage.objects
-  FOR DELETE USING (bucket_id IN ('products', 'product-images') AND (auth.role() = 'authenticated' OR auth.role() = 'service_role'));
+  FOR DELETE TO service_role USING (bucket_id IN ('products', 'product-images'));
 
 -- =============================================================================
 -- STARTER DATA
@@ -401,4 +412,3 @@ VALUES
   ('Grocessories', 'Groceries and food items'),
   ('Health & Beauty', 'Health, beauty, and personal care products')
 ON CONFLICT (name) DO NOTHING;
-

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuthenticatedUser } from "@/lib/serverAuth";
 
 const endpoints: Record<string, string> = {
   otp: "submit_otp",
@@ -10,6 +11,7 @@ const endpoints: Record<string, string> = {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!await requireAuthenticatedUser(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     const secretKey = process.env.PAYSTACK_SECRET_KEY;
     if (!secretKey) return NextResponse.json({ error: "Paystack is not configured" }, { status: 500 });
     const { reference, action, value, address } = await request.json();

@@ -37,17 +37,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   
-  // Log raw data for debugging
-  console.log('GET /api/admin/products raw data:', JSON.stringify(data, null, 2));
-  
   // Ensure prices are formatted correctly and quantity present
   const formattedData = (data || []).map((product: any) => {
-    console.log(`Formatting price for product "${product.name}":`, { rawPrice: product.price, type: typeof product.price });
-    
     // Handle null/undefined
     if (product.price === null || product.price === undefined) {
       product.price = formatCurrency(0);
-      console.log(`Product "${product.name}": price was null, set to ${formatCurrency(0)}`);
       // also ensure stock_quantity
       if (product.stock_quantity == null) product.stock_quantity = 0;
       return product;
@@ -55,7 +49,6 @@ export async function GET(req: NextRequest) {
     
     // If already formatted with GHS, return as-is
     if (typeof product.price === 'string' && product.price.toUpperCase().includes('GHS')) {
-      console.log(`Product "${product.name}": price already formatted - ${product.price}`);
       if (product.stock_quantity == null) product.stock_quantity = 0;
       return product;
     }
@@ -74,16 +67,13 @@ export async function GET(req: NextRequest) {
     // If parsing failed, default to 0
     if (isNaN(priceNum)) {
       product.price = formatCurrency(0);
-      console.log(`Product "${product.name}": parsing failed, set to ${formatCurrency(0)}`);
     } else {
       product.price = formatCurrency(priceNum);
-      console.log(`Product "${product.name}": formatted to ${product.price}`);
     }
     if (product.stock_quantity == null) product.stock_quantity = 0;
     return product;
   });
   
-  console.log('GET /api/admin/products formatted data:', JSON.stringify(formattedData, null, 2));
   return NextResponse.json(formattedData);
 }
 
@@ -94,12 +84,6 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  console.log('ADMIN /api/admin/products POST body:', body);
-  const cookieStore = await cookies();
-  console.log('ADMIN cookies:', {
-    sb_admin_token: cookieStore.get('sb-admin-token')?.value,
-    admin_session: cookieStore.get('admin_session')?.value,
-  });
   const { name, image, about, category, status, price, stock_quantity } = body || {};
   if (!name || price === undefined) {
     return NextResponse.json({ error: 'Missing fields (name, price required)' }, { status: 400 });

@@ -10,12 +10,6 @@ export async function POST(request: NextRequest) {
   try {
     const { currentPassword, newPassword, accessToken: tokenFromBody } = await request.json();
 
-    console.log('[CHANGE-PASSWORD] Request received with:', {
-      hasCurrentPassword: !!currentPassword,
-      hasNewPassword: !!newPassword,
-      hasAccessToken: !!tokenFromBody,
-    });
-
     if (!currentPassword || !newPassword) {
       return NextResponse.json(
         { error: 'Current password and new password are required' },
@@ -36,24 +30,13 @@ export async function POST(request: NextRequest) {
     const cookieToken = cookieStore.get('sb-admin-token')?.value;
     let accessToken = cookieToken || tokenFromBody;
 
-    console.log('[CHANGE-PASSWORD] Token resolution:', {
-      hasCookieToken: !!cookieToken,
-      hasBodyToken: !!tokenFromBody,
-      resolvedToSource: cookieToken ? 'cookie' : (tokenFromBody ? 'body' : 'none'),
-      hasAccessToken: !!accessToken,
-    });
-
     if (!accessToken) {
-      console.error('[CHANGE-PASSWORD] No access token found in cookies or request body. Available cookies:', 
-        cookieStore.getAll().map(c => c.name).join(', ')
-      );
       return NextResponse.json(
         { error: 'Session expired. Please log in again.' },
         { status: 401 }
       );
     }
 
-    console.log('[CHANGE-PASSWORD] Access token verified');
 
     // Get user info from the access token
     const userRes = await fetch(
@@ -86,7 +69,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log('[CHANGE-PASSWORD] User email retrieved:', adminEmail);
 
     // Verify current password by signing in with the Supabase client
     // This avoids manual fetch bugs with URLSearchParams.
