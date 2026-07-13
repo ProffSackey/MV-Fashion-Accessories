@@ -13,7 +13,7 @@ import ProductCard from '../../components/ProductCard';
 import { ChevronLeftIcon, ShoppingCartIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
 import ReviewCard, { Review } from '../../components/ReviewCard';
 import ProductRatingModal from '@/app/components/ProductRatingModal';
-import { parseCurrency } from '@/lib/currency';
+import { formatCurrency, parseCurrency } from '@/lib/currency';
 
 type PendingProductRating = {
   productId: string;
@@ -587,7 +587,7 @@ export default function ProductDetailPage() {
 
               {/* Price */}
               <div className="text-4xl font-bold text-yellow-700 mb-4">
-                {product.price}
+                {formatCurrency(parseCurrency(product.price))}
               </div>
 
               {/* Stock Status */}

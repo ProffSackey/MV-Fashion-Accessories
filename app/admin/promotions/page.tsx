@@ -9,6 +9,7 @@ import AdminSidebar from "../../components/AdminSidebar";
 import { MagnifyingGlassIcon, FunnelIcon, PlusIcon, EyeIcon, XMarkIcon, PencilIcon, TrashIcon, HomeIcon, UserGroupIcon, ShoppingCartIcon, CubeIcon, CreditCardIcon, ChartBarIcon, StarIcon, GiftIcon, BellIcon, EnvelopeIcon, NewspaperIcon, CogIcon } from "@heroicons/react/24/outline";
 import { useAdminSession } from "../../../lib/useAdminSession";
 import { fetchPromotions, createPromotion, updatePromotion, deletePromotion, fetchProducts, type Promotion, type Product } from "../../../lib/supabaseService";
+import { formatCurrency, parseCurrency } from "@/lib/currency";
 
 export default function PromotionsPage() {
   console.log("[PromotionsPage] mounted");
@@ -461,7 +462,7 @@ export default function PromotionsPage() {
                         />
                         <label className="ml-3 flex-1 cursor-pointer">
                           <div className="text-sm font-medium text-gray-800">{product.name}</div>
-                          <div className="text-xs text-gray-500">{product.price}</div>
+                          <div className="text-xs text-gray-500">{formatCurrency(parseCurrency(product.price))}</div>
                         </label>
                       </div>
                     ))

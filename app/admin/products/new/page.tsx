@@ -8,6 +8,7 @@ import AdminNavbar from "../../../components/AdminNavbar";
 import AdminSidebar from "../../../components/AdminSidebar";
 import { HomeIcon, UserGroupIcon, ShoppingCartIcon, CubeIcon, CreditCardIcon, ChartBarIcon, StarIcon, GiftIcon, BellIcon, EnvelopeIcon, NewspaperIcon, CogIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
 import { useAdminSession } from "../../../../lib/useAdminSession";
+import { parseCurrency } from "@/lib/currency";
 
 interface Product {
   id: string;
@@ -95,7 +96,7 @@ export default function NewProductPage() {
                 about: prod.about || '',
                 category: prod.category || 'Electronics',
                 status: prod.status || 'In Stock',
-                price: typeof prod.price === 'string' ? prod.price.replace('GHS ', '') : String(prod.price || ''),
+                price: prod.price ? String(parseCurrency(prod.price)) : '',
                 quantity: prod.stock_quantity !== undefined && prod.stock_quantity !== null ? String(prod.stock_quantity) : '0',
               });
               setIsEditMode(true);

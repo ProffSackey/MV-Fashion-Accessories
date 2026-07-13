@@ -6,12 +6,13 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
-import { getCartItems, updateCartItemQuantity, removeFromCart, clearCart, addToCart, fetchPromotions } from "@/lib/supabaseService";
+import { updateCartItemQuantity, removeFromCart, addToCart, fetchPromotions } from "@/lib/supabaseService";
 import { MinusIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { clearGuestCart, fetchGuestCartFromSupabase, removeFromGuestCart, updateGuestCartItem } from '@/lib/cartUtils';
 import { getProductPromotions, calculateDiscount } from "@/lib/promotionUtils";
 import type { Promotion as PromotionType } from "@/lib/supabaseService";
 import { formatCurrency, parseCurrency } from "@/lib/currency";
+import PaymentModal from "@/app/components/PaymentModal";
 
 interface CartItem {
   id: string;
@@ -43,6 +44,13 @@ interface ShippingRate {
   estimatedDeliveryMax: number;
 }
 
+interface ShippingZoneLocation {
+  id?: string;
+  country: string;
+  region: string;
+  city: string;
+}
+
 export default function CartPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
@@ -65,11 +73,53 @@ export default function CartPage() {
   const [calculating, setCalculating] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const paymentMethod = "mobile_money" as const;
+  const [paymentOrderId, setPaymentOrderId] = useState<string | null>(null);
   const [userInitiated, setUserInitiated] = useState(false); // Track if user has changed country/region
+  const [shippingZones, setShippingZones] = useState<ShippingZoneLocation[]>([]);
+  const [shippingZonesLoading, setShippingZonesLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+
+    fetch('/api/shipping-zones', { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Could not load delivery locations');
+        return response.json();
+      })
+      .then((zones) => {
+        if (active) setShippingZones(Array.isArray(zones) ? zones : []);
+      })
+      .catch((error) => {
+        console.error('[CartPage] Failed to load shipping zones:', error);
+        if (active) setShippingZones([]);
+      })
+      .finally(() => {
+        if (active) setShippingZonesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const countryOptions = Array.from(new Set(shippingZones.map((zone) => zone.country).filter(Boolean))).sort();
+  const regionOptions = Array.from(new Set(
+    shippingZones
+      .filter((zone) => zone.country === shippingInfo.country)
+      .map((zone) => zone.region)
+      .filter(Boolean)
+  )).sort();
+  const cityOptions = Array.from(new Set(
+    shippingZones
+      .filter((zone) => zone.country === shippingInfo.country && zone.region === shippingInfo.region)
+      .map((zone) => zone.city)
+      .filter(Boolean)
+  )).sort();
 
   const hydrateGuestCartItems = async () => {
     const guestCart = await fetchGuestCartFromSupabase();
-    const productsById = new Map<string, any>();
+    const productsById = new Map<string, CartItem["product"]>();
 
     await Promise.all(
       guestCart.map(async (item) => {
@@ -158,12 +208,12 @@ export default function CartPage() {
       const meta = user.user_metadata || {};
 
       // Normalize country to ISO codes where possible
-      const rawCountry = (meta.address?.country || shippingInfo.country || "").toString();
+      const rawCountry = (meta.address?.country || "").toString();
       const countryKey = rawCountry.trim().toUpperCase();
       const countryMap: Record<string, string> = {
-        'GHANA': 'GH', 'GH': 'GH',
-        'UNITED KINGDOM': 'GB', 'UK': 'GB', 'GB': 'GB',
-        'UNITED STATES': 'US', 'USA': 'US', 'US': 'US'
+        'GHANA': 'Ghana', 'GH': 'Ghana',
+        'UNITED KINGDOM': 'United Kingdom', 'UK': 'United Kingdom', 'GB': 'United Kingdom',
+        'UNITED STATES': 'United States', 'USA': 'United States', 'US': 'United States'
       };
       const normalizedCountry = countryMap[countryKey] || rawCountry;
 
@@ -174,7 +224,7 @@ export default function CartPage() {
         phone: meta.phone || "",
         address: meta.address?.street || "",
         city: meta.address?.city || "",
-        postCode: meta.address?.postCode || "",
+        postCode: meta.address?.postCode || meta.address?.postcode || "",
         country: normalizedCountry,
         region: meta.address?.region || prev.region,
         digitalAddress: meta.address?.digitalAddress || meta.address?.digital_address || prev.digitalAddress,
@@ -186,7 +236,7 @@ export default function CartPage() {
         !meta.phone ||
         !meta.address?.street ||
         !meta.address?.city ||
-        !meta.address?.postCode
+        !meta.address?.country
       ) {
         setError(
           "Your account is missing some shipping details – please update your profile before placing an order."
@@ -263,9 +313,10 @@ export default function CartPage() {
 
   // Subscribe to app-level cart change events so this page updates in real-time
   useEffect(() => {
-    const handler = async (ev: any) => {
+    const handler = async (event: Event) => {
       try {
-        const email = ev?.detail?.email || (user && user.email) || null;
+        const customEvent = event as CustomEvent<{ email?: string }>;
+        const email = customEvent.detail?.email || (user && user.email) || null;
         if (!email) return;
         console.log('[CartPage] Cart change event received, reloading items for:', email);
         const res = await fetch(`/api/cart/items?email=${encodeURIComponent(email)}`);
@@ -302,14 +353,17 @@ export default function CartPage() {
 
   // Calculate shipping fee when country/region changes (only if user initiated)
   useEffect(() => {
-    if (!shippingInfo.country || !userInitiated) return;
+    if (!shippingInfo.country || !shippingInfo.region || !shippingInfo.city || !userInitiated) {
+      setShippingRate(null);
+      return;
+    }
 
     const calcShipping = async () => {
       setCalculating(true);
       setError("");
       try {
         // Sanitize region: remove label words like 'region' if user pasted them
-        const rawLocation = (shippingInfo.region || shippingInfo.country || "").toString();
+        const rawLocation = (shippingInfo.city || shippingInfo.region || shippingInfo.country || "").toString();
         const sanitizedRegion = rawLocation.replace(/\bregion\b[:\s-]*/ig, '').trim();
         const location = sanitizedRegion || shippingInfo.country;
         const params = new URLSearchParams({
@@ -339,7 +393,7 @@ export default function CartPage() {
     };
 
     calcShipping();
-  }, [shippingInfo.country, shippingInfo.region, userInitiated]);
+  }, [shippingInfo.city, shippingInfo.country, shippingInfo.region, userInitiated]);
 
   const updateQuantity = async (productId: string, quantity: number) => {
     if (quantity <= 0) {
@@ -400,9 +454,9 @@ export default function CartPage() {
       !shippingInfo.email ||
       !shippingInfo.phone ||
       !shippingInfo.country ||
+      !shippingInfo.region ||
       !shippingInfo.address ||
-      !shippingInfo.city ||
-      !shippingInfo.postCode
+      !shippingInfo.city
     ) {
       setError(
         "Please complete your profile/shipping information, including country, before checking out or update your account settings."
@@ -513,15 +567,8 @@ export default function CartPage() {
         throw new Error(errorData.error || "Failed to create order");
       }
 
-      // Clear cart
-      if (user?.email) {
-        await clearCart(user.email);
-      }
-      setCartItems([]);
-
-      // Show success and redirect
-      alert("Order created successfully!");
-      router.push("/orders");
+      const preparedOrder = await res.json();
+      setPaymentOrderId(preparedOrder.order_id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create order");
     } finally {
@@ -746,43 +793,58 @@ export default function CartPage() {
                     }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
                   />
-                  <input
-                    type="text"
-                    list="shipping-country-options"
-                    placeholder="Country *"
+                  <select
                     value={shippingInfo.country}
                     onChange={(e) => {
                       setShippingInfo({
                         ...shippingInfo,
-                        country: e.target.value.trimStart(),
+                        country: e.target.value,
+                        region: '',
+                        city: '',
                       });
                       setUserInitiated(true);
                     }}
+                    disabled={shippingZonesLoading}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                  />
-                  <datalist id="shipping-country-options">
-                    <option value="Ghana" />
-                    <option value="United Kingdom" />
-                    <option value="United States" />
-                    <option value="Canada" />
-                    <option value="Nigeria" />
-                    <option value="South Africa" />
-                    <option value="Germany" />
-                    <option value="France" />
-                    <option value="Italy" />
-                    <option value="Netherlands" />
-                  </datalist>
+                  >
+                    <option value="">{shippingZonesLoading ? 'Loading countries...' : 'Select country *'}</option>
+                    {shippingInfo.country && !countryOptions.includes(shippingInfo.country) && (
+                      <option value={shippingInfo.country}>{shippingInfo.country}</option>
+                    )}
+                    {countryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
 
-                  <input
-                    type="text"
-                    placeholder="Region / State / Province"
+                  <select
                     value={shippingInfo.region}
                     onChange={(e) => {
-                      setShippingInfo({ ...shippingInfo, region: e.target.value });
+                      setShippingInfo({ ...shippingInfo, region: e.target.value, city: '' });
                       setUserInitiated(true);
                     }}
+                    disabled={!shippingInfo.country || shippingZonesLoading}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                  />
+                  >
+                    <option value="">Select region / state *</option>
+                    {shippingInfo.region && !regionOptions.includes(shippingInfo.region) && (
+                      <option value={shippingInfo.region}>{shippingInfo.region}</option>
+                    )}
+                    {regionOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+
+                  <select
+                    value={shippingInfo.city}
+                    onChange={(e) => {
+                      setShippingInfo({ ...shippingInfo, city: e.target.value });
+                      setUserInitiated(true);
+                    }}
+                    disabled={!shippingInfo.region || shippingZonesLoading}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                  >
+                    <option value="">Select city *</option>
+                    {shippingInfo.city && !cityOptions.includes(shippingInfo.city) && (
+                      <option value={shippingInfo.city}>{shippingInfo.city}</option>
+                    )}
+                    {cityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
 
                   <input
                     type="text"
@@ -790,15 +852,6 @@ export default function CartPage() {
                     value={shippingInfo.address}
                     onChange={(e) =>
                       setShippingInfo({ ...shippingInfo, address: e.target.value })
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                  />
-                  <input
-                    type="text"
-                    placeholder="City *"
-                    value={shippingInfo.city}
-                    onChange={(e) =>
-                      setShippingInfo({ ...shippingInfo, city: e.target.value })
                     }
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
                   />
@@ -829,14 +882,33 @@ export default function CartPage() {
                 disabled={submitting || calculating || cartItems.length === 0 || !user}
                 className="w-full px-6 py-3 bg-yellow-600 text-white font-semibold rounded-lg hover:bg-yellow-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
               >
-                {!user ? "Log in to Checkout" : submitting ? "Processing..." : "Place Order"}
+                {!user ? "Log in to Checkout" : submitting ? "Preparing payment..." : `Continue to payment · ${formatCurrency(total)}`}
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      
+      {paymentOrderId && (
+        <PaymentModal
+          orderId={paymentOrderId}
+          total={total}
+          initialMethod={paymentMethod}
+          shippingAddress={{
+            address: shippingInfo.address,
+            city: shippingInfo.city,
+            region: shippingInfo.region,
+            postCode: shippingInfo.postCode,
+          }}
+          onClose={() => setPaymentOrderId(null)}
+          onSuccess={() => {
+            setPaymentOrderId(null);
+            setCartItems([]);
+            window.dispatchEvent(new CustomEvent("userCartCountUpdated", { detail: { count: 0 } }));
+            router.push("/orders");
+          }}
+        />
+      )}
     </div>
   );
 }

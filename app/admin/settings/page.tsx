@@ -7,14 +7,16 @@ import { useRouter } from "next/navigation";
 import AdminNavbar from "../../components/AdminNavbar";
 import AdminSidebar from "../../components/AdminSidebar";
 import { supabase } from '@/lib/supabaseClient';
-import { HomeIcon, UserGroupIcon, ShoppingCartIcon, CubeIcon, CreditCardIcon, ChartBarIcon, StarIcon, GiftIcon, BellIcon, EnvelopeIcon, NewspaperIcon, CogIcon, CheckIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
+import { CheckIcon, TrashIcon, PencilIcon } from "@heroicons/react/24/outline";
 import { useAdminSession } from "../../../lib/useAdminSession";
+import { getShippingCities, getShippingRegions, shippingLocationCountries } from "@/lib/shippingLocations";
 
 interface ShippingZone {
   id?: string;
   name: string;
   country: string;
   region?: string;
+  city?: string;
   base_fee: number;
   per_km_fee: number;
   min_delivery_days: number;
@@ -26,19 +28,6 @@ const tabs = [
   { id: "General", label: "General", icon: "🏪" },
   { id: "Shipping Rates", label: "Shipping Rates", icon: "🚚" },
   { id: "Security", label: "Security", icon: "🔒" },
-];
-
-const countrySuggestions = [
-  "Ghana",
-  "United Kingdom",
-  "United States",
-  "Canada",
-  "Nigeria",
-  "South Africa",
-  "Germany",
-  "France",
-  "Italy",
-  "Netherlands",
 ];
 
 const countryDisplayNames: Record<string, string> = {
@@ -73,6 +62,7 @@ export default function SettingsPage() {
     name: '',
     country: '',
     region: '',
+    city: '',
     base_fee: 0,
     per_km_fee: 0,
     min_delivery_days: 1,
@@ -87,14 +77,7 @@ export default function SettingsPage() {
 
 
 
-  // Fetch shipping zones
-  useEffect(() => {
-    if (activeTab === 'Shipping Rates') {
-      fetchShippingZones();
-    }
-  }, [activeTab]);
-
-  const fetchShippingZones = async () => {
+  async function fetchShippingZones() {
     try {
       const response = await fetch('/api/admin/shipping-zones');
       if (response.ok) {
@@ -104,12 +87,16 @@ export default function SettingsPage() {
     } catch (error) {
       console.error('Error fetching shipping zones:', error);
     }
-  };
+  }
 
-  const handleLogout = async () => {
-    await fetch('/api/admin/logout', { method: 'POST' });
-    router.push('/admin/login');
-  };
+  // Fetch shipping zones only after the admin session has been checked.
+  useEffect(() => {
+    if (sessionChecked && activeTab === 'Shipping Rates') {
+      // The async request updates state only after the network response resolves.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchShippingZones();
+    }
+  }, [activeTab, sessionChecked]);
 
   const handleSave = () => {
     setSaved(true);
@@ -123,6 +110,10 @@ export default function SettingsPage() {
 
   const handleSaveZone = async () => {
     if (!editingZone) return;
+    if (!editingZone.country || !editingZone.region || !editingZone.city) {
+      alert('Country, region, and city are required');
+      return;
+    }
     try {
       const response = await fetch(`/api/admin/shipping-zones/${editingZone.id}`, {
         method: 'PUT',
@@ -219,7 +210,7 @@ export default function SettingsPage() {
       const currentToken = session?.access_token;
       // console.log('[SETTINGS] Token retrieved from Supabase session:', !!currentToken); // Removed for security
 
-      const requestBody: any = {
+      const requestBody: { currentPassword: string; newPassword: string; accessToken?: string } = {
         currentPassword,
         newPassword,
       };
@@ -283,12 +274,12 @@ export default function SettingsPage() {
 
   const handleAddZone = async () => {
     // Validation
-    if (!newZone.name.trim()) {
-      alert('Zone name is required');
-      return;
-    }
     if (!newZone.country) {
       alert('Country is required');
+      return;
+    }
+    if (!newZone.region || !newZone.city) {
+      alert('Region and city are required');
       return;
     }
     if (typeof newZone.base_fee !== 'number' || newZone.base_fee < 0) {
@@ -306,8 +297,9 @@ export default function SettingsPage() {
         setShowAddForm(false);
         setNewZone({
           name: '',
-        country: '',
+          country: '',
           region: '',
+          city: '',
           base_fee: 0,
           per_km_fee: 0,
           min_delivery_days: 1,
@@ -536,42 +528,47 @@ export default function SettingsPage() {
                     <div className="px-8 py-6 bg-gradient-to-r from-green-50 to-emerald-50 border-b border-gray-200">
                       <h3 className="text-lg font-bold text-gray-900">Add New Shipping Zone</h3>
                     </div>
-                    <div className="px-8 py-8 space-y-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-5 px-8 py-8 md:grid-cols-2">
                       <div>
                         <label className="block text-sm font-semibold text-gray-900 mb-2">Country</label>
-                        <input
-                          type="text"
-                          list="admin-country-options"
-                          placeholder="e.g., Ghana, Canada, Nigeria"
+                        <select
                           value={newZone.country}
-                          onChange={(e) => setNewZone({ ...newZone, country: e.target.value.trimStart() })}
+                          onChange={(e) => setNewZone({ ...newZone, country: e.target.value, region: '', city: '' })}
                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900"
-                        />
-                        <datalist id="admin-country-options">
-                          {countrySuggestions.map((country) => (
-                            <option key={country} value={country} />
+                        >
+                          <option value="">Select country</option>
+                          {shippingLocationCountries.map((country) => (
+                            <option key={country.name} value={country.name}>{country.name}</option>
                           ))}
-                        </datalist>
+                        </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-gray-900 mb-2">Zone Name</label>
-                        <input
-                          type="text"
-                          placeholder="e.g., London, California, Greater Accra"
-                          value={newZone.name}
-                          onChange={(e) => setNewZone({ ...newZone, name: e.target.value })}
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-900 mb-2">Region Code</label>
-                        <input
-                          type="text"
-                          placeholder="e.g., SW, CA, (leave blank for Ghana)"
+                        <label className="block text-sm font-semibold text-gray-900 mb-2">Region / State</label>
+                        <select
                           value={newZone.region || ""}
-                          onChange={(e) => setNewZone({ ...newZone, region: e.target.value || undefined })}
+                          disabled={!newZone.country}
+                          onChange={(e) => setNewZone({ ...newZone, region: e.target.value || undefined, city: '' })}
                           className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900"
-                        />
+                        >
+                          <option value="">Select region or state</option>
+                          {getShippingRegions(newZone.country).map((region) => (
+                            <option key={region.name} value={region.name}>{region.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-900 mb-2">City</label>
+                        <select
+                          value={newZone.city || ""}
+                          disabled={!newZone.region}
+                          onChange={(e) => setNewZone({ ...newZone, city: e.target.value || undefined })}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900"
+                        >
+                          <option value="">Select city</option>
+                          {getShippingCities(newZone.country, newZone.region || '').map((city) => (
+                            <option key={city} value={city}>{city}</option>
+                          ))}
+                        </select>
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-gray-900 mb-2">Base Shipping Fee (GHS )</label>
@@ -660,7 +657,7 @@ export default function SettingsPage() {
                               </colgroup>
                               <thead>
                                 <tr className="bg-gray-50 border-b border-gray-200">
-                                  <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Zone Name</th>
+                                  <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">City</th>
                                   <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Region</th>
                                   <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Fee (GHS )</th>
                                   <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">Delivery Days</th>
@@ -671,8 +668,8 @@ export default function SettingsPage() {
                               <tbody>
                                 {countryZones.map((zone: ShippingZone) => (
                                   <tr key={zone.id} className="border-b border-gray-100 hover:bg-gray-50">
-                                        <td className="px-4 sm:px-6 py-4 text-gray-900 font-medium break-words">{zone.name}</td>
-                                        <td className="px-4 sm:px-6 py-4 text-gray-600 text-sm max-w-[200px] truncate">{zone.region || "—"}</td>
+                                        <td className="px-4 sm:px-6 py-4 text-gray-900 font-medium break-words">{zone.city || "—"}</td>
+                                        <td className="px-4 sm:px-6 py-4 text-gray-600 text-sm max-w-[200px]">{zone.region || "—"}</td>
                                         <td className="px-4 sm:px-6 py-4 text-gray-900 font-semibold">GHS {zone.base_fee.toFixed(2)}</td>
                                         <td className="px-4 sm:px-6 py-4 text-gray-600 text-sm whitespace-nowrap">
                                           {zone.min_delivery_days}–{zone.max_delivery_days} days
@@ -717,42 +714,50 @@ export default function SettingsPage() {
                 )}
 
                 {isEditModalOpen && editingZone && (
-                  <div className="fixed inset-0 bg-white text-gray-900 bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 text-gray-900">
+                    <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
                       <h3 className="text-lg font-bold mb-4">Edit Shipping Zone</h3>
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-semibold text-gray-900 mb-2">Country</label>
-                          <input
-                            type="text"
-                            list="admin-edit-country-options"
+                          <select
                             value={editingZone.country}
-                            onChange={(e) => setEditingZone({ ...editingZone, country: e.target.value.trimStart() })}
+                            onChange={(e) => setEditingZone({ ...editingZone, country: e.target.value, region: '', city: '' })}
                             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900"
-                          />
-                          <datalist id="admin-edit-country-options">
-                            {countrySuggestions.map((country) => (
-                              <option key={country} value={country} />
+                          >
+                            <option value="">Select country</option>
+                            {shippingLocationCountries.map((country) => (
+                              <option key={country.name} value={country.name}>{country.name}</option>
                             ))}
-                          </datalist>
+                          </select>
                         </div>
                         <div>
-                          <label className="block text-sm font-semibold text-gray-900 mb-2">Zone Name</label>
-                          <input
-                            type="text"
-                            value={editingZone.name}
-                            onChange={(e) => setEditingZone({ ...editingZone, name: e.target.value })}
-                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-900 mb-2">Region Code</label>
-                          <input
-                            type="text"
+                          <label className="block text-sm font-semibold text-gray-900 mb-2">Region / State</label>
+                          <select
                             value={editingZone.region || ""}
-                            onChange={(e) => setEditingZone({ ...editingZone, region: e.target.value || undefined })}
+                            disabled={!editingZone.country}
+                            onChange={(e) => setEditingZone({ ...editingZone, region: e.target.value || undefined, city: '' })}
                             className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900"
-                          />
+                          >
+                            <option value="">Select region or state</option>
+                            {getShippingRegions(editingZone.country).map((region) => (
+                              <option key={region.name} value={region.name}>{region.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-900 mb-2">City</label>
+                          <select
+                            value={editingZone.city || ""}
+                            disabled={!editingZone.region}
+                            onChange={(e) => setEditingZone({ ...editingZone, city: e.target.value || undefined })}
+                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 text-gray-900"
+                          >
+                            <option value="">Select city</option>
+                            {getShippingCities(editingZone.country, editingZone.region || '').map((city) => (
+                              <option key={city} value={city}>{city}</option>
+                            ))}
+                          </select>
                         </div>
                         <div>
                           <label className="block text-sm font-semibold text-gray-900 mb-2">Base Shipping Fee (GHS )</label>

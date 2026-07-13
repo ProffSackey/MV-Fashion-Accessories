@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronDownIcon, MagnifyingGlassIcon } from "@heroicons/react/24/outline";
+import { formatCurrency, parseCurrency } from "@/lib/currency";
 
 type ProductSearchItem = {
   id: string;
@@ -211,7 +212,7 @@ export default function SearchBar({ categories = [], variant = "desktop", onNavi
                       <p className="truncate text-sm font-semibold text-gray-900">{product.name}</p>
                       <p className="mt-0.5 truncate text-xs text-gray-500">{product.category || "Uncategorized"}</p>
                     </div>
-                    {product.price && <span className="flex-none text-xs font-semibold text-yellow-700">{product.price}</span>}
+                    {product.price && <span className="flex-none text-xs font-semibold text-yellow-700">{formatCurrency(parseCurrency(product.price))}</span>}
                   </Link>
                 ))}
               </div>

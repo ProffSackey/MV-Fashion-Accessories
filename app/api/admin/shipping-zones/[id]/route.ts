@@ -10,7 +10,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: 'Zone ID is required' }, { status: 400 });
     }
 
-    const updatedZone = await updateShippingZone(id, body);
+    const allowedUpdates = {
+      name: body.city || body.name,
+      country: body.country,
+      region: body.region,
+      city: body.city,
+      base_fee: body.base_fee,
+      per_km_fee: body.per_km_fee,
+      min_delivery_days: body.min_delivery_days,
+      max_delivery_days: body.max_delivery_days,
+      is_active: body.is_active,
+    };
+
+    const updatedZone = await updateShippingZone(id, allowedUpdates);
 
     if (!updatedZone) {
       return NextResponse.json({ error: 'Zone not found' }, { status: 404 });

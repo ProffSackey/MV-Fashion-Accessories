@@ -9,6 +9,7 @@ import AdminSidebar from "../../components/AdminSidebar";
 import { MagnifyingGlassIcon, FunnelIcon, PencilSquareIcon, TrashIcon, HomeIcon, UserGroupIcon, ShoppingCartIcon, CubeIcon, CreditCardIcon, ChartBarIcon, StarIcon, GiftIcon, BellIcon, EnvelopeIcon, NewspaperIcon, CogIcon, PlusIcon } from "@heroicons/react/24/outline";
 import { fetchCategories, type Product } from "../../../lib/supabaseService";
 import { useAdminSession } from "../../../lib/useAdminSession";
+import { formatCurrency, parseCurrency } from "@/lib/currency";
 
 const statusColors: Record<string, { bg: string; text: string }> = {
   "active": { bg: "bg-green-100", text: "text-green-600" },
@@ -217,7 +218,7 @@ export default function ProductsPage() {
                         </td>
                         <td className="px-4 sm:px-6 py-4 text-sm text-gray-600">{product.about}</td>
                         <td className="px-4 sm:px-6 py-4 text-sm text-gray-700">{product.category}</td>
-                        <td className="px-4 sm:px-6 py-4 text-sm font-semibold text-gray-900">{product.price}</td>
+                        <td className="px-4 sm:px-6 py-4 text-sm font-semibold text-gray-900">{formatCurrency(parseCurrency(product.price))}</td>
                         <td className="px-4 sm:px-6 py-4 text-sm font-medium text-gray-800">{product.stock_quantity ?? 0}</td>
                         <td className="px-4 sm:px-6 py-4 text-sm flex items-center gap-3">
                           <button

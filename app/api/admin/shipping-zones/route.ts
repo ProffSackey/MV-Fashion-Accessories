@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getShippingZones, createShippingZone } from '@/lib/supabaseService';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const zones = await getShippingZones();
     return NextResponse.json(zones);
@@ -15,20 +15,27 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
-    if (!body.name || !body.country || typeof body.base_fee !== 'number') {
+    if (!body.country || !body.region || !body.city || typeof body.base_fee !== 'number') {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     const newZone = await createShippingZone({
-      name: body.name,
-      country: body.country,
-      region: body.region || undefined,
+      // Keep the legacy required column populated without exposing a separate
+      // zone-name field in the admin interface.
+      name: body.city.trim(),
+      country: body.country.trim(),
+      region: body.region.trim(),
+      city: body.city.trim(),
       base_fee: body.base_fee,
       per_km_fee: body.per_km_fee || 0,
       min_delivery_days: body.min_delivery_days || 1,
       max_delivery_days: body.max_delivery_days || 5,
       is_active: body.is_active !== undefined ? body.is_active : true,
     });
+
+    if (!newZone) {
+      return NextResponse.json({ error: 'Could not create shipping zone' }, { status: 500 });
+    }
 
     return NextResponse.json(newZone, { status: 201 });
   } catch (error) {

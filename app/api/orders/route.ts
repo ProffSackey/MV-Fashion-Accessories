@@ -1,255 +1,152 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabaseClient';
+import { NextRequest, NextResponse } from "next/server";
+import { getSupabaseAdmin } from "@/lib/supabaseClient";
+import { parseCurrency } from "@/lib/currency";
 
-/**
- * POST /api/orders
- * Create a new order with items and shipping information
- * Includes shipping fee in the total amount
- */
+type CheckoutItem = {
+  product_id?: string;
+  quantity?: number;
+  price?: number;
+  discounted_price?: number;
+  discount_amount?: number;
+};
+
+/** Create an unpaid order draft. Stock and customer totals are changed only after verified payment. */
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-
     const {
       customer_name,
       customer_email,
       customer_phone,
       items,
-      total_amount,
       shipping_address,
-      shipping_fee,
-      status = 'pending',
     } = body;
 
-    // Validate required fields
-    if (!customer_name || !customer_email || !items || !total_amount) {
-      return NextResponse.json(
-        { error: 'Missing required fields: customer_name, customer_email, items, total_amount' },
-        { status: 400 }
-      );
-    }
-
-    if (!Array.isArray(items) || items.length === 0) {
-      return NextResponse.json(
-        { error: 'Items must be a non-empty array' },
-        { status: 400 }
-      );
+    if (!customer_name || !customer_email || !Array.isArray(items) || items.length === 0) {
+      return NextResponse.json({ error: "Missing required order details" }, { status: 400 });
     }
 
     const supabaseAdmin = getSupabaseAdmin();
     if (!supabaseAdmin) {
-      return NextResponse.json(
-        { error: 'Service role not configured' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Service role not configured" }, { status: 500 });
     }
 
-    // Generate order number
-    const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-
-    // Validate stock for all items before creating the order
+    const normalizedItems: CheckoutItem[] = [];
     const insufficient: Array<{ product_id: string; requested: number; available: number }> = [];
-    for (const item of items) {
-      const { product_id, quantity } = item as any;
-      if (!product_id || typeof quantity !== 'number') continue;
-      const { data: productData, error: fetchErr } = await supabaseAdmin
-        .from('products')
-        .select('stock_quantity')
-        .eq('id', product_id)
-        .limit(1)
+    const { data: promotions } = await supabaseAdmin.from("promotions").select("*");
+    let merchandiseTotal = 0;
+
+    for (const rawItem of items as CheckoutItem[]) {
+      const productId = String(rawItem.product_id || "");
+      const quantity = Number(rawItem.quantity);
+      if (!productId || !Number.isInteger(quantity) || quantity <= 0) {
+        return NextResponse.json({ error: "Invalid order item" }, { status: 400 });
+      }
+
+      const { data: product, error } = await supabaseAdmin
+        .from("products")
+        .select("id, price, stock_quantity")
+        .eq("id", productId)
         .single();
-      if (fetchErr) {
-        console.error('Error fetching product for stock check:', product_id, fetchErr);
-        // treat as unavailable
-        insufficient.push({ product_id, requested: quantity, available: 0 });
+
+      if (error || !product) {
+        insufficient.push({ product_id: productId, requested: quantity, available: 0 });
         continue;
       }
-      const available = (productData?.stock_quantity as number) || 0;
+
+      const available = Number(product.stock_quantity) || 0;
       if (available < quantity) {
-        insufficient.push({ product_id, requested: quantity, available });
+        insufficient.push({ product_id: productId, requested: quantity, available });
       }
+
+      const originalPrice = parseCurrency(product.price);
+      const now = new Date();
+      const promotion = (promotions || []).find((candidate) => {
+        const productIds = Array.isArray(candidate.product_ids) ? candidate.product_ids.map(String) : [];
+        const startsAt = candidate.start_date ? new Date(candidate.start_date) : new Date(0);
+        const endsAt = candidate.deadline ? new Date(candidate.deadline) : new Date(8640000000000000);
+        return candidate.is_active && productIds.includes(productId) && startsAt <= now && endsAt >= now;
+      });
+      let discountedPrice = originalPrice;
+      if (promotion) {
+        if (String(promotion.type).toLowerCase() === "percentage") {
+          discountedPrice = originalPrice * (1 - Number(promotion.discount) / 100);
+        } else {
+          discountedPrice = Math.max(0, originalPrice - parseCurrency(promotion.discount));
+        }
+      }
+      discountedPrice = Math.round(discountedPrice * 100) / 100;
+      merchandiseTotal += discountedPrice * quantity;
+
+      normalizedItems.push({
+        product_id: productId,
+        quantity,
+        price: originalPrice,
+        discounted_price: discountedPrice,
+        discount_amount: Math.round((originalPrice - discountedPrice) * 100) / 100,
+      });
     }
 
     if (insufficient.length > 0) {
-      return NextResponse.json({ error: 'Insufficient stock for some items', details: insufficient }, { status: 400 });
+      return NextResponse.json({ error: "Insufficient stock for some items", details: insufficient }, { status: 400 });
     }
 
-    // Create order in database
-    const { data: order, error: orderError } = await supabaseAdmin
-      .from('orders')
+    const country = String(shipping_address?.country || "").trim();
+    const region = String(shipping_address?.region || "").trim();
+    const city = String(shipping_address?.city || "").trim();
+    if (!country || !region || !city) {
+      return NextResponse.json({ error: "A valid delivery location is required" }, { status: 400 });
+    }
+
+    const { data: zone, error: zoneError } = await supabaseAdmin
+      .from("shipping_zones")
+      .select("base_fee")
+      .eq("is_active", true)
+      .ilike("country", country)
+      .ilike("region", region)
+      .ilike("city", city)
+      .limit(1)
+      .single();
+    if (zoneError || !zone) {
+      return NextResponse.json({ error: "The selected delivery location is not available" }, { status: 400 });
+    }
+
+    const serverTotal = Math.round((merchandiseTotal + Number(zone.base_fee || 0)) * 100) / 100;
+    if (!Number.isFinite(serverTotal) || serverTotal <= 0) {
+      return NextResponse.json({ error: "Order total must be greater than zero" }, { status: 400 });
+    }
+
+    const orderNumber = `ORD-${Date.now()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    const { data: order, error } = await supabaseAdmin
+      .from("orders")
       .insert({
         order_number: orderNumber,
-        customer_name,
-        customer_email,
-        customer_phone: customer_phone || null,
-        total_amount: parseFloat(String(total_amount)),
-        status,
-        payment_status: 'unpaid',
-        items,
+        customer_name: String(customer_name).trim(),
+        customer_email: String(customer_email).trim().toLowerCase(),
+        customer_phone: customer_phone ? String(customer_phone).trim() : null,
+        total_amount: serverTotal,
+        status: "pending_payment",
+        payment_status: "unpaid",
+        items: normalizedItems,
         shipping_address: shipping_address || null,
       })
-      .select();
+      .select("id, order_number, total_amount")
+      .single();
 
-    if (orderError) {
-      console.error('Error creating order:', orderError);
-      return NextResponse.json(
-        { error: 'Failed to create order' },
-        { status: 500 }
-      );
+    if (error || !order) {
+      console.error("Error creating pending order:", error);
+      return NextResponse.json({ error: "Failed to prepare order" }, { status: 500 });
     }
 
-    // Also create/update customer record
-    try {
-      const { data: existingCustomer } = await supabaseAdmin
-        .from('customers')
-        .select('*')
-        .eq('email', customer_email)
-        .single();
-
-      if (existingCustomer) {
-        // Update existing customer
-        await supabaseAdmin
-          .from('customers')
-          .update({
-            total_orders: (existingCustomer.total_orders || 0) + 1,
-            total_spent: (existingCustomer.total_spent || 0) + parseFloat(String(total_amount)),
-            phone: customer_phone || existingCustomer.phone,
-            address: shipping_address || existingCustomer.address,
-          })
-          .eq('email', customer_email);
-      } else {
-        // Create new customer
-        await supabaseAdmin
-          .from('customers')
-          .insert({
-            email: customer_email,
-            name: customer_name,
-            phone: customer_phone || null,
-            address: shipping_address || null,
-            total_orders: 1,
-            total_spent: parseFloat(String(total_amount)),
-            is_active: true,
-          });
-      }
-    } catch (err) {
-      console.warn('Error updating customer record:', err);
-      // Don't fail the order creation if customer update fails
-    }
-
-    // Decrement stock for each item in the order
-    const lowStockAlerts: Array<any> = [];
-    try {
-      const STOCK_THRESHOLD = 5;
-      for (const item of items) {
-        const { product_id, quantity } = item;
-        
-        if (!product_id || !quantity) {
-          console.warn('Skipping item without product_id or quantity:', item);
-          continue;
-        }
-
-        // Get current stock
-        const { data: product, error: fetchError } = await supabaseAdmin
-          .from('products')
-          .select('stock_quantity, id, name')
-          .eq('id', product_id)
-          .single();
-
-        if (fetchError) {
-          console.error(`Error fetching product ${product_id}:`, fetchError);
-          continue;
-        }
-
-        if (!product) {
-          console.warn(`Product ${product_id} not found`);
-          continue;
-        }
-
-        const currentStock = product.stock_quantity || 0;
-        const newStock = Math.max(0, currentStock - quantity); // Don't go below 0
-
-        // Update product stock
-        const { error: updateError } = await supabaseAdmin
-          .from('products')
-          .update({ stock_quantity: newStock })
-          .eq('id', product_id);
-
-        if (updateError) {
-          console.error(`Error updating stock for product ${product_id}:`, updateError);
-        } else {
-          console.log(`Updated stock for product ${product_id}: ${currentStock} -> ${newStock}`);
-          // If product reached low-stock threshold, prepare an admin alert
-          if (newStock <= STOCK_THRESHOLD) {
-            lowStockAlerts.push({ product_id, name: product?.name || null, remaining: newStock });
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Error updating product stock:', err);
-      // Don't fail the order creation if stock update fails
-    }
-
-    // Create admin notifications with order, transaction, and low-stock context.
-    try {
-      const amount = parseFloat(String(total_amount));
-      const orderNotification = {
-        type: 'new_order',
-        title: `New order ${orderNumber}`,
-        message: `Order ${orderNumber} placed by ${customer_name} (${customer_email}) - GHS ${amount.toFixed(2)}`,
-        recipient_type: 'admin',
-        recipient_email: null,
-        action_url: `/admin/orders/${orderNumber}`,
-        metadata: {
-          order_number: orderNumber,
-          order_id: order?.[0]?.id,
-          customer_name,
-          customer_email,
-          total_amount: amount,
-          items,
-          low_stock_alerts: lowStockAlerts,
-        },
-      };
-      const transactionNotification = {
-        type: 'new_transaction',
-        title: `New transaction for ${orderNumber}`,
-        message: `Transaction recorded for ${orderNumber}: GHS ${amount.toFixed(2)}.`,
-        recipient_type: 'admin',
-        recipient_email: null,
-        action_url: '/admin/transactions',
-        metadata: {
-          order_number: orderNumber,
-          order_id: order?.[0]?.id,
-          customer_name,
-          customer_email,
-          total_amount: amount,
-          payment_status: 'unpaid',
-        },
-      };
-
-      const { error: notifErr } = await supabaseAdmin
-        .from('notifications')
-        .insert([orderNotification, transactionNotification]);
-      if (notifErr) console.error('Failed to create admin notification for new order:', notifErr);
-    } catch (e) {
-      console.error('Error writing admin notification:', e);
-    }
-
-    return NextResponse.json(
-      {
-        success: true,
-        order_number: orderNumber,
-        order_id: order?.[0]?.id,
-        total_amount,
-        shipping_fee: shipping_fee || 0,
-        message: 'Order created successfully',
-      },
-      { status: 201 }
-    );
+    return NextResponse.json({
+      success: true,
+      order_id: order.id,
+      order_number: order.order_number,
+      total_amount: order.total_amount,
+      message: "Order prepared for payment",
+    }, { status: 201 });
   } catch (error) {
-    console.error('Order creation error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error("Order preparation error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

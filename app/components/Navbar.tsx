@@ -20,26 +20,11 @@ export default function Navbar() {
   const router = useRouter();
   // cart counts are now managed via context so that any consumer can update them
   const { guestCount, userCount, setGuestCount, setUserCount } = useCart();
-  const [mounted, setMounted] = useState(false);
-
-  // don't render on admin pages
-  if (pathname?.startsWith('/admin')) {
-    return null;
-  }
 
   const [categories, setCategories] = useState<string[]>([]);
   const [user, setUser] = useState<any>(null);
   const [firstName, setFirstName] = useState<string>('');
   const [unreadMessages, setUnreadMessages] = useState(0);
-
-  const isAdminSessionActive = async () => {
-    try {
-      const res = await fetch('/api/admin/verify-session', { credentials: 'include' });
-      return res.ok;
-    } catch {
-      return false;
-    }
-  };
 
   const handleSignOut = async () => {
     setUser(null);
@@ -56,13 +41,6 @@ export default function Navbar() {
       return;
     }
 
-    if (await isAdminSessionActive()) {
-      setUser(null);
-      setFirstName('');
-      setUserCount(0);
-      return;
-    }
-
     setUser(sessionUser);
     const fullName = sessionUser.user_metadata?.full_name || sessionUser.email || '';
     setFirstName(fullName.split(' ')[0]);
@@ -72,11 +50,6 @@ export default function Navbar() {
   const cartCount = user ? userCount : guestCount;
 
   console.log('[Navbar] Current state - user:', !!user, 'userCartCount:', userCount, 'guestCount:', guestCount, 'displayed cartCount:', cartCount);
-
-  // Set mounted flag to prevent hydration mismatch
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   useEffect(() => {
     // Load guest cart from Supabase for initial count (migration removed)
@@ -340,6 +313,12 @@ export default function Navbar() {
     };
   }, []);
 
+  // Admin pages have their own navigation. Keep this after hooks so hook order
+  // remains stable while navigating between public and admin routes.
+  if (pathname?.startsWith('/admin')) {
+    return null;
+  }
+
   return (
     <nav className="fixed left-0 top-0 z-50 w-full border-b border-gray-200 bg-white">
       {/* top row with logo and icons - visible on all screens */}
@@ -461,7 +440,7 @@ export default function Navbar() {
             </button>
             <h3 className="text-lg font-semibold text-gray-700 mb-3">Menu</h3>
             <nav>
-              <ul className="space-y-2 text-gray-700">
+              <ul className="space-y-1 text-gray-700">
                 <li>
                   <Link
                     href="/"
@@ -471,19 +450,8 @@ export default function Navbar() {
                     Home
                   </Link>
                 </li>
-                <li>
-                  {user ? (
-                    <button
-                      type="button"
-                      className="block w-full px-2 py-2 text-left rounded hover:bg-gray-100 font-medium"
-                      onClick={async () => {
-                        await handleSignOut();
-                        setMobileMenuOpen(false);
-                      }}
-                    >
-                      Sign Out
-                    </button>
-                  ) : (
+                {!user && (
+                  <li>
                     <Link
                       href="/login"
                       className="block px-2 py-2 rounded hover:bg-gray-100 font-medium"
@@ -491,64 +459,68 @@ export default function Navbar() {
                     >
                       Sign In
                     </Link>
-                  )}
-                </li>
-                {user && (
-                  <li>
-                    <Link
-                      href="/user"
-                      className="block px-2 py-2 rounded hover:bg-gray-100 font-medium"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      My Account
-                    </Link>
                   </li>
                 )}
-                <li>
-                  <Link
-                    href="/contact"
-                    className="block px-2 py-2 rounded hover:bg-gray-100 font-medium"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Help
-                  </Link>
+                {user && (
+                  <>
+                    <li className="mt-3 border-t border-gray-200 pt-3">
+                      <span className="block px-2 py-1 text-xs font-bold uppercase tracking-wider text-gray-400">Your account</span>
+                    </li>
+                    <li>
+                      <Link
+                        href="/user"
+                        className="block px-2 py-2 rounded hover:bg-gray-100 font-medium"
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        My Account
+                      </Link>
+                    </li>
+                    {[
+                      { label: "My Orders", href: "/orders" },
+                      { label: "Messages", href: "/messages" },
+                      { label: "Ratings & Reviews", href: "/reviews" },
+                      { label: "Settings", href: "/settings" },
+                    ].map((item) => (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          className="block rounded px-2 py-2 font-medium hover:bg-gray-100"
+                          onClick={() => setMobileMenuOpen(false)}
+                        >
+                          {item.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </>
+                )}
+                <li className="mt-3 border-t border-gray-200 pt-3">
+                  <span className="block px-2 py-1 text-xs font-bold uppercase tracking-wider text-gray-400">Support</span>
                 </li>
-                <li>
-                  <Link
-                    href="/about"
-                    className="block px-2 py-2 rounded hover:bg-gray-100 font-medium"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    About Us
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/contact"
-                    className="block px-2 py-2 rounded hover:bg-gray-100 font-medium"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    Contact Us
-                  </Link>
-                </li>
-                <li className="border-t border-gray-200 pt-2 mt-2">
-                  <span className="text-xs font-semibold text-gray-500 uppercase block px-2 py-1">Categories</span>
-                </li>
-                {categories.length === 0 && <li className="text-sm text-gray-500">No categories</li>}
-                {categories.map((cat) => (
-                  <li key={cat}>
-                    <Link
-                      href={`/category/${cat
-                        .toLowerCase()
-                        .replace(/ & /g, "-")
-                        .replace(/ /g, "-")}`}
-                      className="block px-2 py-2 rounded hover:bg-gray-100"
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      {cat}
+                {[
+                  { label: "Help", href: "/contact" },
+                  { label: "About Us", href: "/about" },
+                  { label: "Contact Us", href: "/contact" },
+                ].map((item) => (
+                  <li key={item.label}>
+                    <Link href={item.href} className="block rounded px-2 py-2 font-medium hover:bg-gray-100" onClick={() => setMobileMenuOpen(false)}>
+                      {item.label}
                     </Link>
                   </li>
                 ))}
+                {user && (
+                  <li className="pt-1">
+                    <button
+                      type="button"
+                      className="block w-full rounded px-2 py-2 text-left font-semibold text-red-600 hover:bg-red-50"
+                      onClick={async () => {
+                        await handleSignOut();
+                        setMobileMenuOpen(false);
+                      }}
+                    >
+                      Sign Out
+                    </button>
+                  </li>
+                )}
               </ul>
             </nav>
           </aside>

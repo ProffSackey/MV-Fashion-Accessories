@@ -22,12 +22,18 @@ type Notice = {
 type SavingTarget = "personal" | "payment" | "security" | "shipping" | null;
 type PaymentMethod = "mobile_money" | "card";
 
+type ShippingZoneLocation = {
+  id?: string;
+  country: string;
+  region: string;
+  city: string;
+};
+
 type UserMetadata = {
   full_name?: string;
   phone?: string;
   address?: {
     street?: string;
-    street2?: string;
     city?: string;
     region?: string;
     postCode?: string;
@@ -98,11 +104,12 @@ export default function SettingsPage() {
   const [phone, setPhone] = useState("");
 
   const [addressLine1, setAddressLine1] = useState("");
-  const [addressLine2, setAddressLine2] = useState("");
   const [city, setCity] = useState("");
   const [region, setRegion] = useState("");
   const [postCode, setPostCode] = useState("");
   const [country, setCountry] = useState("");
+  const [shippingZones, setShippingZones] = useState<ShippingZoneLocation[]>([]);
+  const [shippingZonesLoading, setShippingZonesLoading] = useState(true);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("mobile_money");
   const [momoProvider, setMomoProvider] = useState("");
@@ -117,6 +124,43 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   useEffect(() => {
+    let active = true;
+
+    fetch("/api/shipping-zones", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Could not load delivery locations");
+        return response.json();
+      })
+      .then((zones) => {
+        if (active) setShippingZones(Array.isArray(zones) ? zones : []);
+      })
+      .catch((error) => {
+        console.error("Error loading delivery locations:", error);
+        if (active) setShippingZones([]);
+      })
+      .finally(() => {
+        if (active) setShippingZonesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const countryOptions = Array.from(new Set(shippingZones.map((zone) => zone.country).filter(Boolean))).sort();
+  const regionOptions = Array.from(
+    new Set(shippingZones.filter((zone) => zone.country === country).map((zone) => zone.region).filter(Boolean))
+  ).sort();
+  const cityOptions = Array.from(
+    new Set(
+      shippingZones
+        .filter((zone) => zone.country === country && zone.region === region)
+        .map((zone) => zone.city)
+        .filter(Boolean)
+    )
+  ).sort();
+
+  useEffect(() => {
     let mounted = true;
 
     const clearAndRedirect = () => {
@@ -126,7 +170,6 @@ export default function SettingsPage() {
       setEmail("");
       setPhone("");
       setAddressLine1("");
-      setAddressLine2("");
       setCity("");
       setRegion("");
       setPostCode("");
@@ -146,7 +189,6 @@ export default function SettingsPage() {
       setFullName(userMetadata.full_name || user.email || "");
       setPhone(userMetadata.phone || "");
       setAddressLine1(address.street || "");
-      setAddressLine2(address.street2 || "");
       setCity(address.city || "");
       setRegion(address.region || "");
       setPostCode(address.postCode || address.postcode || "");
@@ -321,8 +363,8 @@ export default function SettingsPage() {
     event.preventDefault();
     setNotice(null);
 
-    if (!addressLine1.trim() || !city.trim() || !country.trim()) {
-      setNotice({ type: "error", text: "Address line 1, city, and country are required." });
+    if (!addressLine1.trim() || !country.trim() || !region.trim() || !city.trim()) {
+      setNotice({ type: "error", text: "Address line 1, country, region, and city are required." });
       return;
     }
 
@@ -330,7 +372,6 @@ export default function SettingsPage() {
 
     const address = {
       street: addressLine1.trim(),
-      street2: addressLine2.trim(),
       city: city.trim(),
       region: region.trim(),
       postCode: postCode.trim(),
@@ -503,6 +544,88 @@ export default function SettingsPage() {
           </div>
         </form>
 
+        <form onSubmit={saveShipping} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-5 flex items-center gap-3">
+            <div className="rounded-md bg-yellow-50 p-2 text-yellow-700">
+              <TruckIcon className="h-5 w-5" />
+            </div>
+            <h2 className="text-base font-semibold text-gray-900">Shipping / Delivery Info</h2>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="sm:col-span-3">
+              <label className={labelClass} htmlFor="addressLine1">Address line 1</label>
+              <input id="addressLine1" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} className={inputClass} autoComplete="address-line1" />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="country">Country</label>
+              <select
+                id="country"
+                value={country}
+                onChange={(e) => {
+                  setCountry(e.target.value);
+                  setRegion("");
+                  setCity("");
+                }}
+                disabled={shippingZonesLoading}
+                className={inputClass}
+                autoComplete="country-name"
+              >
+                <option value="">{shippingZonesLoading ? "Loading countries..." : "Select country"}</option>
+                {country && !countryOptions.includes(country) && <option value={country}>{country}</option>}
+                {countryOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="region">Region / State</label>
+              <select
+                id="region"
+                value={region}
+                onChange={(e) => {
+                  setRegion(e.target.value);
+                  setCity("");
+                }}
+                disabled={!country || shippingZonesLoading}
+                className={inputClass}
+                autoComplete="address-level1"
+              >
+                <option value="">Select region or state</option>
+                {region && !regionOptions.includes(region) && <option value={region}>{region}</option>}
+                {regionOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="city">City</label>
+              <select
+                id="city"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                disabled={!region || shippingZonesLoading}
+                className={inputClass}
+                autoComplete="address-level2"
+              >
+                <option value="">Select city</option>
+                {city && !cityOptions.includes(city) && <option value={city}>{city}</option>}
+                {cityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="postCode">Postal code</label>
+              <input id="postCode" value={postCode} onChange={(e) => setPostCode(e.target.value)} className={inputClass} autoComplete="postal-code" />
+            </div>
+            {!shippingZonesLoading && shippingZones.length === 0 && (
+              <p className="text-sm text-amber-700 sm:col-span-3">
+                No delivery locations are available yet. Please contact the store administrator.
+              </p>
+            )}
+            <div className="flex items-end justify-end sm:col-span-2">
+              <button type="submit" disabled={saving === "shipping"} className={primaryButtonClass}>
+                {saving === "shipping" ? "Saving..." : "Save shipping info"}
+              </button>
+            </div>
+          </div>
+        </form>
+
         <form onSubmit={saveSecurity} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
           <div className="mb-5 flex items-center gap-3">
             <div className="rounded-md bg-green-50 p-2 text-green-700">
@@ -527,47 +650,6 @@ export default function SettingsPage() {
             <div className="flex items-end justify-end">
               <button type="submit" disabled={saving === "security"} className={primaryButtonClass}>
                 {saving === "security" ? "Changing..." : "Change password"}
-              </button>
-            </div>
-          </div>
-        </form>
-
-        <form onSubmit={saveShipping} className="rounded-lg border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-          <div className="mb-5 flex items-center gap-3">
-            <div className="rounded-md bg-yellow-50 p-2 text-yellow-700">
-              <TruckIcon className="h-5 w-5" />
-            </div>
-            <h2 className="text-base font-semibold text-gray-900">Shipping / Delivery Info</h2>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className="sm:col-span-3">
-              <label className={labelClass} htmlFor="addressLine1">Address line 1</label>
-              <input id="addressLine1" value={addressLine1} onChange={(e) => setAddressLine1(e.target.value)} className={inputClass} autoComplete="address-line1" />
-            </div>
-            <div className="sm:col-span-3">
-              <label className={labelClass} htmlFor="addressLine2">Address line 2</label>
-              <input id="addressLine2" value={addressLine2} onChange={(e) => setAddressLine2(e.target.value)} className={inputClass} autoComplete="address-line2" />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="city">City</label>
-              <input id="city" value={city} onChange={(e) => setCity(e.target.value)} className={inputClass} autoComplete="address-level2" />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="region">Region / State</label>
-              <input id="region" value={region} onChange={(e) => setRegion(e.target.value)} className={inputClass} autoComplete="address-level1" />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="postCode">Postal code</label>
-              <input id="postCode" value={postCode} onChange={(e) => setPostCode(e.target.value)} className={inputClass} autoComplete="postal-code" />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="country">Country</label>
-              <input id="country" value={country} onChange={(e) => setCountry(e.target.value)} className={inputClass} autoComplete="country-name" />
-            </div>
-            <div className="flex items-end justify-end sm:col-span-2">
-              <button type="submit" disabled={saving === "shipping"} className={primaryButtonClass}>
-                {saving === "shipping" ? "Saving..." : "Save shipping info"}
               </button>
             </div>
           </div>

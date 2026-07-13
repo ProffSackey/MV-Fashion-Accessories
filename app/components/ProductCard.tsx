@@ -8,7 +8,7 @@ import { EnvelopeIcon } from '@heroicons/react/24/outline';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { useState, useEffect } from 'react';
 import { Promotion as UIPromotion, getProductPromotions, calculateDiscount } from '../../lib/promotionUtils';
-import { formatCurrency } from '../../lib/currency';
+import { formatCurrency, parseCurrency } from '../../lib/currency';
 import type { Product } from '../../lib/supabaseService';
 
 interface Props {
@@ -127,7 +127,7 @@ export default function ProductCard({ product: p, promotions = [], user, addingT
             </div>
           ) : (
             <div className="text-lg sm:text-xl md:text-2xl lg:text-xl xl:text-lg font-bold text-yellow-700 leading-none">
-              {p.price || formatCurrency(0)}
+              {formatCurrency(parseCurrency(p.price))}
             </div>
           )}
 
@@ -185,7 +185,7 @@ export default function ProductCard({ product: p, promotions = [], user, addingT
               <div className="space-y-2 text-sm">
                 <div>
                   <span className="text-gray-600">Price: </span>
-                  <span className="font-bold text-yellow-700">{p.price}</span>
+                  <span className="font-bold text-yellow-700">{formatCurrency(parseCurrency(p.price))}</span>
                 </div>
                 <div>
                   <span className="text-gray-600">Stock: </span>

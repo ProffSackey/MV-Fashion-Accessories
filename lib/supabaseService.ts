@@ -617,6 +617,7 @@ export interface ShippingZone {
   name: string;
   country: string;
   region?: string;
+  city?: string;
   base_fee: number;
   per_km_fee: number;
   min_delivery_days: number;
