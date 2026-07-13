@@ -5,6 +5,12 @@ export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   if (pathname === "/admin/login" || pathname === "/api/admin/login") return NextResponse.next();
 
+  // Allow public GET requests to admin API routes (the route handlers
+  // themselves still enforce admin-only where required). This prevents
+  // anonymous client-side GETs (e.g. product listings) from being
+  // blocked by the proxy.
+  if (pathname.startsWith("/api/admin") && request.method === "GET") return NextResponse.next();
+
   const token = request.cookies.get("sb-admin-token")?.value;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
