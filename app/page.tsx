@@ -228,18 +228,20 @@ export default function Home() {
       }
     };
 
-    // Fetch categories
-    fetch('/api/categories')
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          const normalized = data.map((c: string) =>
-            c === 'Electronics & Computing' ? 'Grocessories' : c
-          );
-          setCategories(normalized);
-        }
-      })
-      .catch(console.error);
+    // Fetch categories (use safe JSON parser to avoid empty-body JSON errors)
+    import('../lib/safeJson').then(({ safeJson }) => {
+      fetch('/api/categories')
+        .then(async (r) => {
+          const data = await safeJson(r, []);
+          if (Array.isArray(data)) {
+            const normalized = data.map((c: string) =>
+              c === 'Electronics & Computing' ? 'Grocessories' : c
+            );
+            setCategories(normalized);
+          }
+        })
+        .catch(console.error);
+    });
 
     loadData();
   }, []);
