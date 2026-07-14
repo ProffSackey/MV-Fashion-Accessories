@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { hasAdminAccess } from '@/lib/adminAuth';
 export async function POST(req: Request) {
   try {
     const { email, password } = await req.json();
@@ -23,12 +24,13 @@ export async function POST(req: Request) {
     }
 
     const appMetadata = signInData.user.app_metadata || {};
+    const userMetadata = signInData.user.user_metadata || {};
     const { data: adminRecord } = await supabase
       .from('admin_users')
       .select('id')
       .ilike('email', signInData.user.email || email)
       .maybeSingle();
-    if (appMetadata.role !== 'admin' && appMetadata.is_admin !== true && !adminRecord) {
+    if (!hasAdminAccess({ appMetadata, userMetadata, adminRecordExists: Boolean(adminRecord) })) {
       await supabase.auth.signOut();
       return NextResponse.json({ error: 'This account is not authorized for administration' }, { status: 403 });
     }

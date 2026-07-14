@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { createClient } = require('@supabase/supabase-js');
 const readline = require('readline');
 require('dotenv').config({ path: '.env.local' });
@@ -64,6 +65,10 @@ async function createAdmin() {
       email: email.trim(),
       password,
       email_confirm: true,
+      app_metadata: {
+        is_admin: true,
+        role: 'admin',
+      },
       user_metadata: {
         is_admin: true,
         full_name: fullName.trim() || 'Admin User',

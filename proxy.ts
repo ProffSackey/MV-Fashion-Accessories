@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { hasAdminAccess } from "./lib/adminAuth";
 
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -20,13 +21,12 @@ export async function proxy(request: NextRequest) {
   const { data, error } = await admin.auth.getUser(token);
   if (error || !data.user?.email) return deny(request);
 
-  const metadata = data.user.app_metadata || {};
-  let authorized = metadata.role === "admin" || metadata.is_admin === true;
-  if (!authorized) {
-    const { data: record } = await admin.from("admin_users").select("id").ilike("email", data.user.email).maybeSingle();
-    authorized = Boolean(record);
-  }
-  if (!authorized) return deny(request);
+  const { data: record } = await admin.from("admin_users").select("id").ilike("email", data.user.email).maybeSingle();
+  if (!hasAdminAccess({
+    appMetadata: data.user.app_metadata || {},
+    userMetadata: data.user.user_metadata || {},
+    adminRecordExists: Boolean(record),
+  })) return deny(request);
 
   return NextResponse.next();
 }
